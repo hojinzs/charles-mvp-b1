@@ -34,6 +34,9 @@ setupWebSocket(io);
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to the API" });
+});
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
