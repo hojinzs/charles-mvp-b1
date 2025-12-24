@@ -1,0 +1,31 @@
+{
+	"name": "Node.js & Docker Compose",
+	"dockerComposeFile": [
+		"../docker-compose.yml",
+		"docker-compose.extend.yml"
+	],
+	"service": "app",
+	"workspaceFolder": "/workspace",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"version": "latest",
+			"enableNonRootDocker": "true",
+			"moby": "true"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"ms-azuretools.vscode-docker"
+			]
+		}
+	},
+	"remoteUser": "node",
+	"runServices": [
+		"app",
+		"postgres",
+		"redis"
+	]
+}
