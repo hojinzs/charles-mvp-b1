@@ -8,7 +8,10 @@ import keywordsRouter from "./routes/keywords";
 import rankingsRouter from "./routes/rankings";
 import jobsRouter from "./routes/jobs";
 import schedulerRouter from "./routes/scheduler";
+import swaggerUi from "swagger-ui-express";
+import specs from "./swagger";
 import { setupWebSocket } from "./websocket";
+import { startScheduler } from "../queue/scheduler";
 
 dotenv.config();
 
@@ -27,6 +30,9 @@ app.use("/api/rankings", rankingsRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/scheduler", schedulerRouter);
 
+// Swagger UI
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
+
 // WebSocket
 setupWebSocket(io);
 
@@ -41,4 +47,5 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`API Server running on port ${PORT}`);
+  startScheduler();
 });
