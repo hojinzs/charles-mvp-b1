@@ -1,0 +1,62 @@
+{
+  "name": "crawler-server",
+  "version": "1.0.0",
+  "description": "Naver Search Ranking Monitoring System - Server",
+  "main": "dist/api/server.js",
+  "scripts": {
+    "start:api": "node dist/api/server.js",
+    "start:worker": "node dist/worker/index.js",
+    "dev:api": "ts-node-dev --respawn --transpile-only src/api/server.ts",
+    "dev:worker": "ts-node-dev --respawn --transpile-only src/worker/index.ts",
+    "build": "tsc",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "crawler",
+    "puppeteer",
+    "express",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bull": "^4.12.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "puppeteer": "^21.11.0",
+    "socket.io": "^4.7.4",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/bull": "^4.10.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.10.6",
+    "@types/pg": "^8.10.9",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "ts-jest": "^29.4.6",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.50.1"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
