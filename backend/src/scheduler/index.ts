@@ -23,7 +23,27 @@ async function runScheduler() {
         for (const kw of keywords) {
             // Deduplication check
             const existingJob = await crawlQueue.getJob(kw.id);
-            if (!existingJob || (await existingJob.isCompleted()) || (await existingJob.isFailed())) {
+            let shouldEnqueue = !existingJob;
+
+            if (existingJob) {
+                const state = await existingJob.getState();
+                if (state === 'completed' || state === 'failed') {
+                    shouldEnqueue = true;
+                } else if (state === 'stuck') {
+                    console.log(`[Scheduler] Removing stuck job ${kw.id} (${kw.keyword})`);
+                    try {
+                        await existingJob.remove();
+                        // After removing, we can either enqueue immediately or wait for next tick
+                        shouldEnqueue = true;
+                    } catch (e) {
+                         console.error(`[Scheduler] Failed to remove stuck job ${kw.id}:`, e);
+                    }
+                } else {
+                    console.log(`[Scheduler] Skipping ${kw.keyword} (Job ${kw.id} exists, status: ${state})`);
+                }
+            }
+
+            if (shouldEnqueue) {
                 console.log(`[Scheduler] Enqueuing ${kw.keyword}`);
                 
                  await crawlQueue.add({
@@ -34,8 +54,6 @@ async function runScheduler() {
                       jobId: kw.id // Use keyword ID as job ID for deduplication
                   });
                   enqueuedCount++;
-            } else {
-                 console.log(`[Scheduler] Skipping ${kw.keyword} (Job ${kw.id} active/waiting)`);
             }
       }
 

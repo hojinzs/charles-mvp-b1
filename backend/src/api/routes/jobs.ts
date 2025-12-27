@@ -138,21 +138,67 @@ router.get("/queue", async (req, res) => {
     const counts = await crawlQueue.getJobCounts();
     const jobs = await crawlQueue.getJobs(
       ["active", "waiting", "delayed"],
-      0
+      0,
+      100 // Limit to 100 recent jobs to avoid performance issues
+    );
+
+    // Fetch state for each job
+    const jobsWithState = await Promise.all(
+      jobs.map(async (j) => {
+        const state = await j.getState();
+        return {
+          id: j.id,
+          data: j.data,
+          status: state,
+          progress: j.progress(),
+          finishedOn: j.finishedOn,
+          failedReason: j.failedReason,
+        };
+      })
     );
 
     res.json({
       success: true,
       data: {
         ...counts,
-        jobs: jobs.map((j) => ({
-          id: j.id,
-          data: j.data,
-          status: "unknown", // Need to fetch status individually if precise status per job is needed, or infer from list
-          progress: j.progress(),
-        })),
+        jobs: jobsWithState,
       },
     });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * @swagger
+ * /jobs/{id}:
+ *   delete:
+ *     summary: Delete a job by ID
+ *     tags: [Jobs]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The job ID
+ *     responses:
+ *       200:
+ *         description: Job deleted successfully
+ *       404:
+ *         description: Job not found
+ *       500:
+ *         description: Server error
+ */
+router.delete("/:id", async (req, res) => {
+  try {
+    const job = await crawlQueue.getJob(req.params.id);
+    if (!job) {
+      return res.status(404).json({ success: false, error: "Job not found" });
+    }
+
+    await job.remove();
+    res.json({ success: true, message: "Job deleted successfully" });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -207,6 +253,35 @@ router.get("/:id", async (req, res) => {
         finishedOn: job.finishedOn,
       },
     });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * @swagger
+ * /jobs/clean:
+ *   post:
+ *     summary: Clear all jobs from the queue
+ *     tags: [Jobs]
+ *     responses:
+ *       200:
+ *         description: Queue cleared successfully
+ *       500:
+ *         description: Server error
+ */
+router.post("/clean", async (req, res) => {
+  try {
+    // "obliterate" completely destroys the queue, removing all jobs and locks.
+    // { force: true } is required to remove active jobs.
+    await crawlQueue.obliterate({ force: true });
+    
+    // Note: After obliterate, the queue structures are gone.
+    // Bull should recreate them on next '.add()', but simple '.empty()' or '.clean()'
+    // is safer if we just want to remove jobs.
+    // However, for "stuck" active jobs that aren't in the active list, obliterate is the most reliable.
+    
+    res.json({ success: true, message: "Queue partially cleared. Please wait for scheduler to refill." });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }

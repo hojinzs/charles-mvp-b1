@@ -77,4 +77,6 @@ export const apiClient = {
 
   // Jobs / Scheduler
   getSchedulerQueue: () => handleResponse(getApi().get('/api/jobs/queue')),
+  deleteJob: (jobId: string) => handleResponse(getApi().delete(`/api/jobs/${jobId}`)),
+  cleanQueue: () => handleResponse(getApi().post('/api/jobs/clean')),
 };

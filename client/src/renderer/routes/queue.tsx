@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api';
 
 interface Job {
@@ -13,11 +13,32 @@ interface Job {
 }
 
 export function QueuePage() {
+  const queryClient = useQueryClient();
   const { data: queueData } = useQuery({
     queryKey: ['queue'],
     queryFn: apiClient.getSchedulerQueue,
     refetchInterval: 3000,
   });
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (jobId: string) => apiClient.deleteJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+  });
+
+  const cleanQueueMutation = useMutation({
+    mutationFn: apiClient.cleanQueue,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+  });
+
+  const handleDelete = (jobId: string) => {
+    if (confirm('Are you sure you want to delete this job?')) {
+      deleteJobMutation.mutate(jobId);
+    }
+  };
 
   const queue: Job[] = (queueData as any)?.jobs || (Array.isArray(queueData) ? queueData : []);
   const counts: Record<string, number> = (queueData as any)?.jobs ? 
@@ -28,9 +49,22 @@ export function QueuePage() {
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-         <div>
-            <h2 className="text-lg font-semibold text-gray-800">Queue Status</h2>
-            <p className="text-sm text-gray-500">Real-time job processing status</p>
+         <div className="flex flex-col gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Queue Status</h2>
+              <p className="text-sm text-gray-500">Real-time job processing status</p>
+            </div>
+            <button
+               onClick={() => {
+                 if (confirm('Are you sure you want to clear the ENTIRE queue? This will stop all active jobs.')) {
+                   cleanQueueMutation.mutate();
+                 }
+               }}
+               disabled={cleanQueueMutation.isPending}
+               className="text-xs px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors w-fit font-medium flex items-center gap-1 border border-red-200"
+            >
+               {cleanQueueMutation.isPending ? 'Clearing...' : 'Clear Queue'}
+            </button>
          </div>
          <div className="flex gap-4">
              <div className="text-center">
@@ -62,6 +96,7 @@ export function QueuePage() {
               <th className="p-5 font-semibold text-gray-600 text-sm">Target URL</th>
               <th className="p-5 font-semibold text-gray-600 text-sm">Status</th>
               <th className="p-5 font-semibold text-gray-600 text-sm">Progress</th>
+              <th className="p-5 font-semibold text-gray-600 text-sm">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -84,11 +119,20 @@ export function QueuePage() {
                       <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${job.progress || 0}%` }}></div>
                    </div>
                 </td>
+                <td className="p-5 text-sm">
+                  <button
+                    onClick={() => handleDelete(job.id)}
+                    className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
+                    disabled={deleteJobMutation.isPending}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
             {queue.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-12 text-center text-gray-400">
+                <td colSpan={6} className="p-12 text-center text-gray-400">
                   No jobs in queue.
                 </td>
               </tr>

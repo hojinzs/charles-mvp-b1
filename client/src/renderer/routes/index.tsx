@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { read, utils, writeFile } from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatDistanceToNow, format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { apiClient } from '../lib/api';
 
 
@@ -243,7 +245,11 @@ export function MonitoringPage() {
                   )}
                 </td>
                 <td className="p-5 text-sm text-gray-400">
-                  {k.last_checked_at ? new Date(k.last_checked_at).toLocaleTimeString() : '-'}
+                  {k.last_checked_at ? (
+                    <span title={format(new Date(k.last_checked_at), 'yyyy-MM-dd HH:mm')}>
+                      {formatDistanceToNow(new Date(k.last_checked_at), { addSuffix: true, locale: ko })}
+                    </span>
+                  ) : '-'}
                 </td>
               </tr>
             ))}
