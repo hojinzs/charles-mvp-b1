@@ -1,4 +1,5 @@
 import puppeteer, { Browser } from "puppeteer";
+import { ProxyManager } from "./proxy-manager";
 
 let browserInstance: Browser | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
@@ -14,15 +15,25 @@ async function getBrowser(): Promise<Browser> {
 
   console.log("[Crawler] Launching new browser instance...");
   
+  const proxyManager = ProxyManager.getInstance();
+  const proxyConfig = proxyManager.getProxyServer();
+
+  const launchArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+  ];
+
+  if (proxyConfig) {
+    console.log(`[Crawler] Using proxy server: ${proxyConfig.host}:${proxyConfig.port}`);
+    launchArgs.push(`--proxy-server=${proxyConfig.host}:${proxyConfig.port}`);
+  }
+  
   browserLaunchPromise = puppeteer.launch({
     headless: "new",
     protocolTimeout: 60000,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
+    args: launchArgs,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   }).then(browser => {
       browserInstance = browser;
@@ -47,6 +58,18 @@ export async function checkRanking(
     // Create isolated context for this job
     context = await browser.createIncognitoBrowserContext();
     page = await context.newPage();
+
+    // Authenticate with Proxy (if configured)
+    const proxyManager = ProxyManager.getInstance();
+    const credentials = proxyManager.getProxyCredentials();
+    
+    if (credentials) {
+      console.log(`[Crawler] Authenticating proxy session...`);
+      await page.authenticate({
+        username: credentials.username,
+        password: credentials.password || ''
+      });
+    }
 
     // Set user agent
     await page.setUserAgent(
