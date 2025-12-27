@@ -22,9 +22,12 @@ const router = Router();
  *               type: string
  *             targetUrl:
  *               type: string
+ *             targetRank:
+ *               type: integer
+ *               description: The desired rank to check for
  *         status:
  *           type: string
- *           description: The status of the job
+ *           description: The status of the job (waiting, active, completed, failed, delayed)
  *         progress:
  *           type: object
  *           description: Progress information
@@ -67,6 +70,8 @@ const router = Router();
  *                 type: string
  *               targetUrl:
  *                 type: string
+ *               targetRank:
+ *                 type: integer
  *     responses:
  *       200:
  *         description: Job created successfully
@@ -134,6 +139,26 @@ router.post("/enqueue", async (req, res) => {
  *     responses:
  *       200:
  *         description: Priority jobs enqueued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       keywordId:
+ *                         type: integer
+ *                       jobId:
+ *                         type: string
+ *                       status:
+ *                         type: string
  *       500:
  *         description: Server error
  */
@@ -262,6 +287,15 @@ router.get("/queue", async (req, res) => {
  *     responses:
  *       200:
  *         description: Job deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  *       404:
  *         description: Job not found
  *       500:
@@ -344,6 +378,15 @@ router.get("/:id", async (req, res) => {
  *     responses:
  *       200:
  *         description: Queue cleared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  *       500:
  *         description: Server error
  */

@@ -1,6 +1,11 @@
 import { pool } from "./connection";
 
-export async function addKeyword(keyword: string, url: string, tags: string[] = [], targetRank?: number) {
+export async function addKeyword(
+  keyword: string,
+  url: string,
+  tags: string[] = [],
+  targetRank?: number,
+) {
   const result = await pool.query(
     "INSERT INTO keywords (keyword, url, tags, target_rank) VALUES ($1, $2, $3, $4) RETURNING *",
     [keyword, url, tags, targetRank],
@@ -8,7 +13,13 @@ export async function addKeyword(keyword: string, url: string, tags: string[] = 
   return result.rows[0];
 }
 
-export async function updateKeyword(id: number, keyword: string, url: string, tags: string[] = [], targetRank?: number) {
+export async function updateKeyword(
+  id: number,
+  keyword: string,
+  url: string,
+  tags: string[] = [],
+  targetRank?: number,
+) {
   const result = await pool.query(
     "UPDATE keywords SET keyword = $1, url = $2, tags = $3, target_rank = $4 WHERE id = $5 RETURNING *",
     [keyword, url, tags, targetRank, id],
@@ -24,30 +35,38 @@ export async function getKeywords() {
 }
 
 export async function getKeywordsByIds(ids: number[]) {
-  const result = await pool.query(
-    "SELECT * FROM keywords WHERE id = ANY($1)",
-    [ids]
-  );
+  const result = await pool.query("SELECT * FROM keywords WHERE id = ANY($1)", [
+    ids,
+  ]);
   return result.rows;
 }
 
 export interface GetKeywordsOptions {
   page: number;
   limit: number;
-  sortBy: 'created' | 'lastChecked' | 'keyword' | 'rank';
-  order: 'asc' | 'desc';
+  sortBy: "created" | "lastChecked" | "keyword" | "rank";
+  order: "asc" | "desc";
   search?: string;
   tag?: string;
 }
 
-export async function getKeywordsPaginated({ page, limit, sortBy, order, search, tag }: GetKeywordsOptions) {
+export async function getKeywordsPaginated({
+  page,
+  limit,
+  sortBy,
+  order,
+  search,
+  tag,
+}: GetKeywordsOptions) {
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const params: any[] = [];
   let paramIndex = 1;
 
   if (search) {
-    conditions.push(`(keyword ILIKE $${paramIndex} OR url ILIKE $${paramIndex})`);
+    conditions.push(
+      `(keyword ILIKE $${paramIndex} OR url ILIKE $${paramIndex})`,
+    );
     params.push(`%${search}%`);
     paramIndex++;
   }
@@ -60,27 +79,28 @@ export async function getKeywordsPaginated({ page, limit, sortBy, order, search,
 
   let orderByClause = "created_at DESC";
   const dir = order.toUpperCase();
-  
+
   switch (sortBy) {
-    case 'lastChecked':
+    case "lastChecked":
       orderByClause = `last_checked_at ${dir} NULLS LAST`;
       break;
-    case 'keyword':
+    case "keyword":
       orderByClause = `keyword ${dir}`;
       break;
-    case 'rank':
+    case "rank":
       // For rank, NULLS LAST is usually desired to show ranked items first (if ASC) or last?
       // User said: "rank (null last)"
       orderByClause = `last_rank ${dir} NULLS LAST`;
       break;
-    case 'created':
+    case "created":
     default:
       orderByClause = `created_at ${dir}`;
       break;
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-  
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const query = `
     SELECT *, count(*) OVER() as total_count 
     FROM keywords 
@@ -90,18 +110,18 @@ export async function getKeywordsPaginated({ page, limit, sortBy, order, search,
   `;
 
   params.push(limit, offset);
-  
+
   const result = await pool.query(query, params);
   return {
     data: result.rows,
-    total: result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
+    total: result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0,
   };
 }
 
 export async function getKeywordsToCrawl(thresholdDate: Date) {
   const result = await pool.query(
     "SELECT * FROM keywords WHERE last_checked_at IS NULL OR last_checked_at <= $1 ORDER BY last_checked_at ASC NULLS FIRST",
-    [thresholdDate]
+    [thresholdDate],
   );
   return result.rows;
 }

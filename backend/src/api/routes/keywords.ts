@@ -22,6 +22,23 @@ const router = Router();
  *         url:
  *           type: string
  *           description: The target URL
+ *         tags:
+ *           type: array
+ *           items:
+ *             type: string
+ *           description: List of tags associated with the keyword
+ *         targetRank:
+ *           type: integer
+ *           description: The desired rank for the keyword
+ *         lastRank:
+ *           type: integer
+ *           nullable: true
+ *           description: The last recorded rank
+ *         lastCheckedAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *           description: When the keyword was last crawled
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -30,7 +47,20 @@ const router = Router();
  *         id: 1
  *         keyword: "naver ads"
  *         url: "https://www.naver.com"
+ *         tags: ["marketing", "ad"]
+ *         targetRank: 5
+ *         lastRank: 3
+ *         lastCheckedAt: "2023-12-24T12:00:00.000Z"
  *         createdAt: "2023-12-24T10:00:00.000Z"
+ *     ApiResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         data:
+ *           type: object
+ *         error:
+ *           type: string
  */
 
 /**
@@ -69,7 +99,12 @@ const router = Router();
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Keyword'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Keyword'
  *       400:
  *         description: Missing keyword or url
  *       500:
@@ -126,6 +161,15 @@ router.post("/", async (req, res) => {
  *     responses:
  *       200:
  *         description: The updated keyword
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Keyword'
  *       400:
  *         description: Missing param
  *       404:
@@ -191,6 +235,11 @@ router.put("/:id", async (req, res) => {
  *         schema:
  *           type: string
  *         description: Search term for keyword or url
+ *       - in: query
+ *         name: tag
+ *         schema:
+ *           type: string
+ *         description: Filter by a specific tag
  *     responses:
  *       200:
  *         description: The list of the keywords and total count
@@ -199,12 +248,17 @@ router.put("/:id", async (req, res) => {
  *             schema:
  *               type: object
  *               properties:
- *                 keywords:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Keyword'
- *                 total:
- *                   type: integer
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     keywords:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Keyword'
+ *                     total:
+ *                       type: integer
  *       500:
  *         description: Server error
  */

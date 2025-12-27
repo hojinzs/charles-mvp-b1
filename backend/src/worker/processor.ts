@@ -39,7 +39,7 @@ export const startProcessor = () => {
       // Rate limiting delay
       const delay = parseInt(process.env.WORKER_INTERVAL_MS || "1000");
       if (delay > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
 
       return { rank, targetRank, keyword };

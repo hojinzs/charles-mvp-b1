@@ -14,7 +14,7 @@ async function getBrowser(): Promise<Browser> {
   }
 
   console.log("[Crawler] Launching new browser instance...");
-  
+
   const proxyManager = ProxyManager.getInstance();
   const proxyConfig = proxyManager.getProxyServer();
 
@@ -26,21 +26,26 @@ async function getBrowser(): Promise<Browser> {
   ];
 
   if (proxyConfig) {
-    console.log(`[Crawler] Using proxy server: ${proxyConfig.host}:${proxyConfig.port}`);
+    console.log(
+      `[Crawler] Using proxy server: ${proxyConfig.host}:${proxyConfig.port}`,
+    );
     launchArgs.push(`--proxy-server=${proxyConfig.host}:${proxyConfig.port}`);
   }
-  
-  browserLaunchPromise = puppeteer.launch({
-    headless: "new",
-    protocolTimeout: 60000,
-    args: launchArgs,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-  }).then(browser => {
+
+  browserLaunchPromise = puppeteer
+    .launch({
+      headless: "new",
+      protocolTimeout: 60000,
+      args: launchArgs,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    })
+    .then((browser) => {
       browserInstance = browser;
       return browser;
-  }).finally(() => {
+    })
+    .finally(() => {
       browserLaunchPromise = null;
-  });
+    });
 
   return browserLaunchPromise;
 }
@@ -51,10 +56,10 @@ export async function checkRanking(
 ): Promise<number | null> {
   let context = null;
   let page = null;
-  
+
   try {
     const browser = await getBrowser();
-    
+
     // Create isolated context for this job
     context = await browser.createIncognitoBrowserContext();
     page = await context.newPage();
@@ -62,12 +67,12 @@ export async function checkRanking(
     // Authenticate with Proxy (if configured)
     const proxyManager = ProxyManager.getInstance();
     const credentials = proxyManager.getProxyCredentials();
-    
+
     if (credentials) {
       console.log(`[Crawler] Authenticating proxy session...`);
       await page.authenticate({
         username: credentials.username,
-        password: credentials.password || ''
+        password: credentials.password || "",
       });
     }
 
@@ -77,7 +82,7 @@ export async function checkRanking(
     );
 
     console.log(`[Crawler] Navigating to search result for: ${keyword}`);
-    
+
     await page.goto(
       `https://m.ad.search.naver.com/search.naver?where=m_expd&query=${encodeURIComponent(keyword)}`,
       { waitUntil: "networkidle0", timeout: 30000 },
@@ -110,13 +115,13 @@ export async function checkRanking(
     return rank;
   } catch (e) {
     console.error(`Error crawling keyword "${keyword}":`, e);
-    
+
     // If browser crashed or disconnected, reset instance
     if (browserInstance && !browserInstance.isConnected()) {
-        console.warn("[Crawler] Browser disconnected, resetting instance.");
-        browserInstance = null;
+      console.warn("[Crawler] Browser disconnected, resetting instance.");
+      browserInstance = null;
     }
-    
+
     throw e;
   } finally {
     if (page) await page.close().catch(() => {});

@@ -33,10 +33,43 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 // WebSocket
 setupWebSocket(io);
 
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ */
 // Health Check
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Welcome endpoint
+ *     responses:
+ *       200:
+ *         description: Welcome message
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ */
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to the API" });
 });

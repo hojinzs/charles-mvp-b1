@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: crawler123
       POSTGRES_DB: crawler_db
     ports:
-      - "5432:5432"
+      - "${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/db/migrations:/docker-entrypoint-initdb.d
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     container_name: crawler-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -36,7 +36,7 @@ services:
       dockerfile: Dockerfile.api
     container_name: crawler-api
     ports:
-      - "${INTERNAL_PORT:-3000}:${PORT:-3000}"
+      - "${INTERNAL_PORT:-3000}:${EXTERNAL_PORT:-3000}"
     environment:
       NODE_ENV: production
       PORT: ${INTERNAL_PORT:-3000}

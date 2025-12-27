@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 
 interface ProxyConfig {
   host: string;
@@ -12,13 +12,15 @@ interface ProxyCredentials {
 
 export class ProxyManager {
   private static instance: ProxyManager;
-  private currentSessionId: string = '';
+  private currentSessionId: string = "";
   private rotationInterval: NodeJS.Timeout | null = null;
   private isEnabled: boolean = true;
-  
+
   // Loaded from env
   private readonly HOST = process.env.PROXY_HOST;
-  private readonly PORT = process.env.PROXY_PORT ? parseInt(process.env.PROXY_PORT, 10) : 0;
+  private readonly PORT = process.env.PROXY_PORT
+    ? parseInt(process.env.PROXY_PORT, 10)
+    : 0;
   private readonly USER = process.env.PROXY_USER;
   private readonly PASS = process.env.PROXY_PASS;
 
@@ -55,11 +57,11 @@ export class ProxyManager {
     if (!this.HOST || !this.PORT || !this.USER) {
       return null;
     }
-    
+
     // If user explicitly asks for no proxy control via some env, we could handle it here.
     return {
       host: this.HOST,
-      port: this.PORT
+      port: this.PORT,
     };
   }
 
@@ -74,7 +76,7 @@ export class ProxyManager {
 
     return {
       username: usernameWithSession,
-      password: this.PASS
+      password: this.PASS,
     };
   }
 }
