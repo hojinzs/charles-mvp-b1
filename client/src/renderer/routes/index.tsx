@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { read, utils, writeFile } from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { apiClient } from '../lib/api';
+import { BulkUploadModal } from '../components/BulkUploadModal';
 
   
   import { useMonitoringState, SortField } from '../hooks/useMonitoringState';
@@ -15,6 +15,7 @@ import { apiClient } from '../lib/api';
     const [newKeyword, setNewKeyword] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
     // Use custom hook for URL state
     const { page, limit, sortBy, order, search, setPage, setSort, setSearch } = useMonitoringState();
@@ -48,13 +49,7 @@ import { apiClient } from '../lib/api';
       },
     });
   
-    const addBulkMutation = useMutation({
-      mutationFn: apiClient.addKeywordsBulk,
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['keywords'] });
-        alert("Keywords added successfully!");
-      },
-    });
+    // ... mutations
   
     const deleteMutation = useMutation({
       mutationFn: apiClient.deleteKeywords,
@@ -112,44 +107,7 @@ import { apiClient } from '../lib/api';
     };
 
     // ... template and upload handlers (keep existing)
-    const handleDownloadTemplate = () => {
-      const ws = utils.json_to_sheet([
-        { keyword: "예시_키워드", displayURL: "example.com" }
-      ]);
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, "Template");
-      writeFile(wb, "monitoring_template.xlsx");
-    };
-  
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-  
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const wb = read(arrayBuffer, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const jsonData = utils.sheet_to_json<{keyword: string, displayURL: string}>(ws);
-  
-        const itemsToAdd = jsonData
-          .filter(item => item.keyword && item.displayURL)
-          .map(item => ({
-            keyword: String(item.keyword).trim(),
-            url: String(item.displayURL).trim()
-          }));
-  
-        if (itemsToAdd.length > 0) {
-          addBulkMutation.mutate(itemsToAdd);
-        } else {
-          alert("No valid data found in file.");
-        }
-        
-        e.target.value = '';
-      } catch (err) {
-        console.error("Failed to process file", err);
-        alert("Failed to process file.");
-      }
-    };
+    // ... template and upload handlers (moved to component)
 
     // Sort Click Handler
     // Cycle: Asc -> Desc -> Default (Created Desc)
@@ -173,70 +131,52 @@ import { apiClient } from '../lib/api';
 
     return (
       <>
-        {/* Helper Text */}
-        <div className="bg-blue-50 text-blue-800 p-4 rounded-lg mb-6 text-sm">
-          <p>ℹ️ Scheduler runs every 1 minute. Add a keyword below and wait for the "Rank" and "Last Check" to update.</p>
-        </div>
-  
         {/* Form */}
-        <form onSubmit={handleAdd} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 flex gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Keyword</label>
-            <input 
-              type="text" 
-              placeholder="e.g. 꽃배달" 
-              value={newKeyword}
-              onChange={(e) => setNewKeyword(e.target.value)}
-              className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Display URL / Title Match</label>
-            <input 
-              type="text" 
-              placeholder="e.g. 99flower" 
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-          </div>
-          <div className="flex items-end">
-            <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition font-medium shadow-sm active:scale-95 transform">
-              Monitor
-            </button>
-          </div>
-        </form>
-  
-        {/* Bulk Upload */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h3 className="text-sm font-semibold text-gray-600 mb-4 uppercase">Bulk Upload (Excel)</h3>
-          <div className="flex gap-4 items-center">
-            <button 
-              onClick={handleDownloadTemplate}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium"
-            >
-              <span>📥</span> Download Template
-            </button>
-            
-            <div className="relative">
+        {/* Form and Bulk Toggle */}
+        <div className="flex flex-col gap-4 mb-8">
+          <form onSubmit={handleAdd} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Keyword</label>
               <input 
-                type="file" 
-                accept=".xlsx, .xls, .csv"
-                onChange={handleFileUpload}
-                className="block w-full text-sm text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-lg file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100
-                "
+                type="text" 
+                placeholder="e.g. 꽃배달" 
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               />
             </div>
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Display URL / Title Match</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 99flower" 
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition font-medium shadow-sm active:scale-95 transform">
+                Monitor
+              </button>
+            </div>
+          </form>
+
+          <div className="flex justify-end">
+            <button 
+              onClick={() => setIsBulkModalOpen(true)}
+              className="text-xs font-bold text-gray-400 hover:text-blue-600 transition uppercase tracking-wider flex items-center gap-1 bg-gray-50 px-3 py-2 rounded-md hover:bg-blue-50"
+            >
+              <span>📊</span> Bulk Upload (Excel)
+            </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
-            * Use the template to upload multiple keywords at once. Columns: <code>keyword</code>, <code>displayURL</code>.
-          </p>
         </div>
+
+        {/* Bulk Upload Modal */}
+        <BulkUploadModal 
+          isOpen={isBulkModalOpen} 
+          onClose={() => setIsBulkModalOpen(false)} 
+        />
   
         {/* Filters */}
         <div className="flex flex-wrap gap-4 mb-4 justify-between items-end">
