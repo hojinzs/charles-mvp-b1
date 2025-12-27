@@ -1,0 +1,227 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+  workflow_dispatch:
+    inputs:
+      skip_version_bump:
+        description: 'Skip automatic version bump'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  version:
+    name: Version Check & Bump
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      should_build: ${{ steps.version.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check version change
+        id: version
+        working-directory: client
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Get previous version from last commit
+          git show HEAD~1:client/package.json > /tmp/prev-package.json 2>/dev/null || echo '{"version":"0.0.0"}' > /tmp/prev-package.json
+          PREV_VERSION=$(node -p "require('/tmp/prev-package.json').version")
+          
+          echo "Current version: $CURRENT_VERSION"
+          echo "Previous version: $PREV_VERSION"
+          
+          if [ "$CURRENT_VERSION" = "$PREV_VERSION" ] && [ "${{ inputs.skip_version_bump }}" != "true" ]; then
+            echo "Version unchanged, bumping patch version..."
+            npm version patch --no-git-tag-version
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "New version: $NEW_VERSION"
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "bumped=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
+          
+          VERSION=$(node -p "require('./package.json').version")
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "should_build=true" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        if: steps.version.outputs.bumped == 'true'
+        working-directory: client
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(client): bump version to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: version
+    if: needs.version.outputs.should_build == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build Electron app
+        working-directory: client
+        env:
+          # macOS signing
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # macOS notarization
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows signing
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # S3 config for auto-update
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: npm run build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            client/release/*.dmg
+            client/release/*.zip
+            client/release/*.exe
+            client/release/*.yml
+            client/release/*.yaml
+          if-no-files-found: error
+
+  upload-s3:
+    name: Upload to S3
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload to S3
+        run: |
+          VERSION=${{ needs.version.outputs.version }}
+          
+          # Upload version-specific folder
+          aws s3 cp artifacts/ s3://${{ secrets.S3_BUCKET }}/releases/v${VERSION}/ --recursive
+          
+          # Update latest folder
+          aws s3 cp artifacts/ s3://${{ secrets.S3_BUCKET }}/releases/latest/ --recursive
+          
+          echo "Uploaded to s3://${{ secrets.S3_BUCKET }}/releases/v${VERSION}/"
+
+  release:
+    name: Create GitHub Release
+    needs: [version, build, upload-s3]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          echo "## What's Changed" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Downloads" >> release-notes.md
+          echo "- **macOS**: \`.dmg\` or \`.zip\`" >> release-notes.md
+          echo "- **Windows**: \`.exe\` (Installer or Portable)" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "### S3 URL" >> release-notes.md
+          echo "\`s3://${{ secrets.S3_BUCKET }}/releases/v${{ needs.version.outputs.version }}/\`" >> release-notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Release ${{ needs.version.outputs.version }}
+          body_path: release-notes.md
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+            artifacts/**/*.exe
+          draft: false
+          prerelease: false
+
+  deployment:
+    name: Create Deployment
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+    steps:
+      - name: Create Deployment
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: production
+          ref: ${{ needs.version.outputs.tag }}
+          description: "Client v${{ needs.version.outputs.version }} deployed"

@@ -1,7 +1,7 @@
 {
-  "name": "nascent-blazar",
+  "name": "@charles-mvp/client",
   "version": "1.0.0",
-  "description": "",
+  "description": "네이버 검색 순위 모니터링 데스크탑 앱",
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
@@ -12,12 +12,30 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
+    "appId": "kr.daniworks.charles-mvp",
+    "productName": "Charles MVP",
     "files": [
       "dist/**/*",
       "package.json"
     ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "buildResources"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "buildResources/entitlements.mac.plist",
+      "entitlementsInherit": "buildResources/entitlements.mac.plist"
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "keywords": [],
@@ -47,6 +65,7 @@
     "better-sqlite3": "^12.5.0",
     "date-fns": "^4.1.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "sonner": "^2.0.7",

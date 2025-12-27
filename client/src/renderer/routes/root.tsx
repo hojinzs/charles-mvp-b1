@@ -11,6 +11,7 @@ export function RootLayout() {
         <div className="flex border-b border-gray-200 mb-6">
           <Link 
             to="/" 
+            search={{ page: 1, limit: 100, sortBy: 'created', order: 'desc', search: '' }}
             className="px-6 py-3 font-medium text-gray-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-100 transition-colors"
             activeProps={{ className: "text-blue-600 border-blue-600" }}
           >

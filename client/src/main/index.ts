@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
+import { autoUpdater } from 'electron-updater';
 import { getBackendUrl, setBackendUrl } from './store';
 
 // POC: Global reference to keep window alive
@@ -42,6 +43,11 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+
+  // Auto-update check (production only)
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

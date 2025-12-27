@@ -1,5 +1,5 @@
 {
-  "name": "crawler-server",
+  "name": "@charles-mvp/backend",
   "version": "1.0.0",
   "description": "Naver Search Ranking Monitoring System - Server",
   "main": "dist/api/server.js",
