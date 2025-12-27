@@ -36,12 +36,12 @@ services:
       dockerfile: Dockerfile.api
     container_name: crawler-api
     ports:
-      - "3000:3000"
+      - "${INTERNAL_PORT:-3000}:${PORT:-3000}"
     environment:
       NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgresql://crawler:crawler123@postgres:5432/crawler_db
-      REDIS_URL: redis://redis:6379
+      PORT: ${INTERNAL_PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,9 +56,13 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://crawler:crawler123@postgres:5432/crawler_db
-      REDIS_URL: redis://redis:6379
-      WORKER_CONCURRENCY: 2
+      DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      PROXY_USER: ${PROXY_USER}
+      PROXY_PASS: ${PROXY_PASS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,9 +80,10 @@ services:
     command: npm run start:scheduler
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://crawler:crawler123@postgres:5432/crawler_db
-      REDIS_URL: redis://redis:6379
-      SCEDULER_INTERVAL_MS: 60000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      SCEDULER_INTERVAL_MS: ${SCEDULER_INTERVAL_MS:-60000}
+      SCHEDULER_CRON: ${SCHEDULER_CRON:-"* * * * *"}
     depends_on:
       postgres:
         condition: service_healthy
