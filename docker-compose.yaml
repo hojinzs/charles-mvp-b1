@@ -68,8 +68,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    deploy:
-      replicas: 2
+    # deploy:
+    #   replicas: 2
     # volumes:
     #   - ./backend/src:/app/src
 
