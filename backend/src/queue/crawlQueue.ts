@@ -27,6 +27,12 @@ export const crawlQueue = new Queue(
 //   console.log(`Job ${jobId} completed with result:`, result);
 // });
 
+crawlQueue.on("error", (err) => {
+  console.error("[Redis] Critical connection error:", err);
+  console.error("[Redis] Exiting process due to Redis connection failure.");
+  process.exit(1);
+});
+
 crawlQueue.on("global:failed", (jobId, err) => {
   console.error(`Job ${jobId} failed:`, err);
 });
