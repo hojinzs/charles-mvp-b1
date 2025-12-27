@@ -113,6 +113,81 @@ router.post("/enqueue", async (req, res) => {
 
 /**
  * @swagger
+ * /jobs/enqueue/priority:
+ *   post:
+ *     summary: Enqueue multiple keywords with high priority
+ *     tags: [Jobs]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ids
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: Priority jobs enqueued
+ *       500:
+ *         description: Server error
+ */
+router.post("/enqueue/priority", async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: "Invalid keyword IDs" });
+    }
+
+    const { getKeywordsByIds } = await import("../../db/queries");
+    const keywords = await getKeywordsByIds(ids);
+
+    const results = [];
+    for (const kw of keywords) {
+      // 1. Check if job exists
+      const existingJob = await crawlQueue.getJob(kw.id);
+      if (existingJob) {
+        const state = await existingJob.getState();
+        // If it's already active, we don't bother moving it
+        // If it's waiting/delayed/failed, we remove and re-add with priority
+        if (state !== 'active') {
+          await existingJob.remove();
+        } else {
+          results.push({ keywordId: kw.id, status: 'already_active' });
+          continue;
+        }
+      }
+
+      // 2. Add with priority 1 (high)
+      const job = await crawlQueue.add({
+        keywordId: kw.id,
+        keyword: kw.keyword,
+        targetUrl: kw.url,
+      }, {
+        jobId: kw.id,
+        priority: 1
+      });
+
+      results.push({ keywordId: kw.id, jobId: job.id, status: 'enqueued' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: `${results.filter(r => r.status === 'enqueued').length} jobs enqueued with priority.`,
+      data: results 
+    });
+  } catch (e: any) {
+    console.error("[Priority Enqueue] Error:", e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * @swagger
  * /jobs/queue:
  *   get:
  *     summary: Get queue statistics and recent jobs

@@ -15,6 +15,74 @@ export async function getKeywords() {
   return result.rows;
 }
 
+export async function getKeywordsByIds(ids: number[]) {
+  const result = await pool.query(
+    "SELECT * FROM keywords WHERE id = ANY($1)",
+    [ids]
+  );
+  return result.rows;
+}
+
+export interface GetKeywordsOptions {
+  page: number;
+  limit: number;
+  sortBy: 'created' | 'lastChecked' | 'keyword' | 'rank';
+  order: 'asc' | 'desc';
+  search?: string;
+}
+
+export async function getKeywordsPaginated({ page, limit, sortBy, order, search }: GetKeywordsOptions) {
+  const offset = (page - 1) * limit;
+  const conditions: string[] = [];
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  if (search) {
+    conditions.push(`(keyword ILIKE $${paramIndex} OR url ILIKE $${paramIndex})`);
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  let orderByClause = "created_at DESC";
+  const dir = order.toUpperCase();
+  
+  switch (sortBy) {
+    case 'lastChecked':
+      orderByClause = `last_checked_at ${dir} NULLS LAST`;
+      break;
+    case 'keyword':
+      orderByClause = `keyword ${dir}`;
+      break;
+    case 'rank':
+      // For rank, NULLS LAST is usually desired to show ranked items first (if ASC) or last?
+      // User said: "rank (null last)"
+      orderByClause = `last_rank ${dir} NULLS LAST`;
+      break;
+    case 'created':
+    default:
+      orderByClause = `created_at ${dir}`;
+      break;
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  
+  const query = `
+    SELECT *, count(*) OVER() as total_count 
+    FROM keywords 
+    ${whereClause} 
+    ORDER BY ${orderByClause} 
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
+
+  params.push(limit, offset);
+  
+  const result = await pool.query(query, params);
+  return {
+    data: result.rows,
+    total: result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
+  };
+}
+
 export async function getKeywordsToCrawl(thresholdDate: Date) {
   const result = await pool.query(
     "SELECT * FROM keywords WHERE last_checked_at IS NULL OR last_checked_at <= $1 ORDER BY last_checked_at ASC NULLS FIRST",

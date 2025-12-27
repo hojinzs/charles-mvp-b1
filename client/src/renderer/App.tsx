@@ -17,6 +17,15 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: MonitoringPage,
+  validateSearch: (search: Record<string, unknown>): { page: number; limit: number; sortBy: string; order: 'asc' | 'desc'; search: string } => {
+    return {
+      page: Number(search.page) || 1,
+      limit: Math.min(Number(search.limit) || 100, 100),
+      sortBy: (search.sortBy as string) || 'created',
+      order: (search.order as 'asc' | 'desc') || 'desc',
+      search: (search.search as string) || '',
+    };
+  },
 });
 
 const historyRoute = createRoute({

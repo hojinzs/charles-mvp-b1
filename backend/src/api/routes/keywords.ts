@@ -94,24 +94,81 @@ router.post("/", async (req, res) => {
  * @swagger
  * /keywords:
  *   get:
- *     summary: Returns the list of all keywords
+ *     summary: Returns the list of keywords with pagination, sorting, and filtering
  *     tags: [Keywords]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Number of items per page
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [created, lastChecked, keyword, rank]
+ *           default: created
+ *         description: Sort field
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for keyword or url
  *     responses:
  *       200:
- *         description: The list of the keywords
+ *         description: The list of the keywords and total count
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Keyword'
+ *               type: object
+ *               properties:
+ *                 keywords:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Keyword'
+ *                 total:
+ *                   type: integer
  *       500:
  *         description: Server error
  */
 router.get("/", async (req, res) => {
   try {
-    const keywords = await getKeywords();
-    res.json({ success: true, data: keywords });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 100;
+    const sortBy = (req.query.sortBy as any) || 'created';
+    const order = (req.query.order as any) || 'desc';
+    const search = req.query.search as string | undefined;
+
+    // TODO: Import specific type if extracting this to a separate file or use type assertion
+    const result = await import("../../db/queries").then(m => m.getKeywordsPaginated({
+      page,
+      limit,
+      sortBy,
+      order,
+      search,
+    }));
+
+    res.json({ 
+      success: true, 
+      data: {
+        keywords: result.data,
+        total: result.total
+      }
+    });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }

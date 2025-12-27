@@ -51,7 +51,8 @@ async function runScheduler() {
                     keyword: kw.keyword,
                     targetUrl: kw.url,
                   }, {
-                      jobId: kw.id // Use keyword ID as job ID for deduplication
+                      jobId: kw.id, // Use keyword ID as job ID for deduplication
+                      priority: 100 // Lower priority than manual requests
                   });
                   enqueuedCount++;
             }

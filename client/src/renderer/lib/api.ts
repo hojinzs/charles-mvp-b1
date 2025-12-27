@@ -56,7 +56,8 @@ export const apiClient = {
   },
 
   // Keywords
-  getKeywords: () => handleResponse(getApi().get('/api/keywords')),
+  getKeywords: (params?: { page?: number; limit?: number; sortBy?: string; order?: 'asc' | 'desc'; search?: string }) => 
+    handleResponse(getApi().get('/api/keywords', { params })),
   addKeyword: (keyword: string, url: string) => handleResponse(getApi().post('/api/keywords', { keyword, url })),
   addKeywordsBulk: (items: {keyword: string, url: string}[]) => {
       // The previous implementation did Promise.all on the client (main process).
@@ -77,6 +78,7 @@ export const apiClient = {
 
   // Jobs / Scheduler
   getSchedulerQueue: () => handleResponse(getApi().get('/api/jobs/queue')),
+  enqueuePriority: (ids: number[]) => handleResponse(getApi().post('/api/jobs/enqueue/priority', { ids })),
   deleteJob: (jobId: string) => handleResponse(getApi().delete(`/api/jobs/${jobId}`)),
   cleanQueue: () => handleResponse(getApi().post('/api/jobs/clean')),
 };
