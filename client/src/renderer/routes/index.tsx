@@ -15,7 +15,7 @@ export function MonitoringPage() {
   const { data: keywords = [] } = useQuery<Keyword[]>({
     queryKey: ['keywords'],
     queryFn: apiClient.getKeywords,
-    refetchInterval: 5000,
+    refetchInterval: 1000 * 10,
   });
 
   // Mutation: Add Keyword
@@ -243,8 +243,7 @@ export function MonitoringPage() {
                   )}
                 </td>
                 <td className="p-5 text-sm text-gray-400">
-                  {k.last_checked_at ? new Date(k.last_checked_at).toLocaleTimeString() : '-'}<br/>
-                  {k.last_checked_at}
+                  {k.last_checked_at ? new Date(k.last_checked_at).toLocaleTimeString() : '-'}
                 </td>
               </tr>
             ))}

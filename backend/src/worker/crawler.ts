@@ -1,12 +1,22 @@
-import puppeteer from "puppeteer";
+import puppeteer, { Browser } from "puppeteer";
 
-export async function checkRanking(
-  keyword: string,
-  targetUrl: string,
-): Promise<number | null> {
-  const browser = await puppeteer.launch({
+let browserInstance: Browser | null = null;
+let browserLaunchPromise: Promise<Browser> | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  if (browserInstance && browserInstance.isConnected()) {
+    return browserInstance;
+  }
+
+  if (browserLaunchPromise) {
+    return browserLaunchPromise;
+  }
+
+  console.log("[Crawler] Launching new browser instance...");
+  
+  browserLaunchPromise = puppeteer.launch({
     headless: "new",
-    protocolTimeout: 60000, 
+    protocolTimeout: 60000,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -14,16 +24,37 @@ export async function checkRanking(
       "--disable-gpu",
     ],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  }).then(browser => {
+      browserInstance = browser;
+      return browser;
+  }).finally(() => {
+      browserLaunchPromise = null;
   });
 
-  try {
-    const page = await browser.newPage();
+  return browserLaunchPromise;
+}
 
-    // Set user agent to a mobile device to match the target logic in requirements
+export async function checkRanking(
+  keyword: string,
+  targetUrl: string,
+): Promise<number | null> {
+  let context = null;
+  let page = null;
+  
+  try {
+    const browser = await getBrowser();
+    
+    // Create isolated context for this job
+    context = await browser.createIncognitoBrowserContext();
+    page = await context.newPage();
+
+    // Set user agent
     await page.setUserAgent(
       "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
     );
 
+    console.log(`[Crawler] Navigating to search result for: ${keyword}`);
+    
     await page.goto(
       `https://m.ad.search.naver.com/search.naver?where=m_expd&query=${encodeURIComponent(keyword)}`,
       { waitUntil: "networkidle0", timeout: 30000 },
@@ -32,7 +63,7 @@ export async function checkRanking(
     // Wait for results to load
     await new Promise((r) => setTimeout(r, 2000));
 
-    const rank = await page.evaluate((url) => {
+    const rank = await page.evaluate((url: string) => {
       const items = document.querySelectorAll("li.list_item");
 
       for (let i = 0; i < items.length; i++) {
@@ -51,11 +82,21 @@ export async function checkRanking(
       return null;
     }, targetUrl);
 
+    console.log(`[Crawler] Rank for "${keyword}": ${rank}`);
+
     return rank;
   } catch (e) {
     console.error(`Error crawling keyword "${keyword}":`, e);
+    
+    // If browser crashed or disconnected, reset instance
+    if (browserInstance && !browserInstance.isConnected()) {
+        console.warn("[Crawler] Browser disconnected, resetting instance.");
+        browserInstance = null;
+    }
+    
     throw e;
   } finally {
-    await browser.close();
+    if (page) await page.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
   }
 }
