@@ -5,7 +5,8 @@ export async function checkRanking(
   targetUrl: string,
 ): Promise<number | null> {
   const browser = await puppeteer.launch({
-    headless: true, // Use "new" or true
+    headless: "new",
+    protocolTimeout: 60000, 
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",

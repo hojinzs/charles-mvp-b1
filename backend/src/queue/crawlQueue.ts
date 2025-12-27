@@ -19,10 +19,10 @@ export const crawlQueue = new Queue(
   },
 );
 
-// Queue event listeners
-crawlQueue.on("global:completed", (jobId, result) => {
-  console.log(`Job ${jobId} completed with result:`, result);
-});
+// // Queue event listeners
+// crawlQueue.on("global:completed", (jobId, result) => {
+//   console.log(`Job ${jobId} completed with result:`, result);
+// });
 
 crawlQueue.on("global:failed", (jobId, err) => {
   console.error(`Job ${jobId} failed:`, err);

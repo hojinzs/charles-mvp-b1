@@ -15,6 +15,14 @@ export async function getKeywords() {
   return result.rows;
 }
 
+export async function getKeywordsToCrawl(thresholdDate: Date) {
+  const result = await pool.query(
+    "SELECT * FROM keywords WHERE last_checked_at IS NULL OR last_checked_at <= $1 ORDER BY last_checked_at ASC NULLS FIRST",
+    [thresholdDate]
+  );
+  return result.rows;
+}
+
 export async function saveRanking(keywordId: number, rank: number | null) {
   const client = await pool.connect();
 

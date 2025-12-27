@@ -35,6 +35,12 @@ export const startProcessor = () => {
         `[Worker ${process.pid}] Job ${job.id} completed. Rank: ${rank}`,
       );
 
+      // Rate limiting delay
+      const delay = parseInt(process.env.WORKER_INTERVAL_MS || "1000");
+      if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
       return { rank };
     } catch (e) {
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);

@@ -10,7 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./src/db/migrations:/docker-entrypoint-initdb.d
+      - ./backend/src/db/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crawler -d crawler_db"]
       interval: 10s
@@ -32,7 +32,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.api
     container_name: crawler-api
     ports:
@@ -48,11 +48,11 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./src:/app/src
+      - ./backend/src:/app/src
 
   worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.worker
     environment:
       NODE_ENV: production
@@ -67,7 +67,23 @@ services:
     deploy:
       replicas: 2
     # volumes:
-    #   - ./src:/app/src
+    #   - ./backend/src:/app/src
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: npm run start:scheduler
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://crawler:crawler123@postgres:5432/crawler_db
+      REDIS_URL: redis://redis:6379
+      SCEDULER_INTERVAL_MS: 60000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

@@ -1,3 +1,6 @@
+// Force UTC timezone to ensure PG returns timestamps in UTC
+process.env.TZ = "UTC";
+
 import { Pool } from "pg";
 import dotenv from "dotenv";
 

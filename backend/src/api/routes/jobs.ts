@@ -138,8 +138,7 @@ router.get("/queue", async (req, res) => {
     const counts = await crawlQueue.getJobCounts();
     const jobs = await crawlQueue.getJobs(
       ["active", "waiting", "delayed"],
-      0,
-      10,
+      0
     );
 
     res.json({
