@@ -173,3 +173,11 @@ export async function getAllRankings() {
   `);
   return result.rows;
 }
+
+export async function deleteKeyword(id: number) {
+  const result = await pool.query(
+    "DELETE FROM keywords WHERE id = $1 RETURNING id",
+    [id]
+  );
+  return result.rows[0];
+}

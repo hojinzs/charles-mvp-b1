@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, getKeywords, updateKeyword } from "../../db/queries";
+import { addKeyword, getKeywords, updateKeyword, deleteKeyword } from "../../db/queries";
 
 const router = Router();
 
@@ -288,6 +288,47 @@ router.get("/", async (req, res) => {
         total: result.total
       }
     });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * @swagger
+ * /keywords/{id}:
+ *   delete:
+ *     summary: Delete a keyword
+ *     tags: [Keywords]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Keyword ID
+ *     responses:
+ *       200:
+ *         description: Keyword deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       404:
+ *         description: Keyword not found
+ *       500:
+ *         description: Server error
+ */
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = await deleteKeyword(id);
+    if (!result) {
+      return res.status(404).json({ success: false, error: "Keyword not found" });
+    }
+    res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
