@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: crawler-postgres
     environment:
       POSTGRES_USER: crawler
@@ -10,7 +12,6 @@ services:
     #   - "${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/db/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-crawler} -d $${POSTGRES_DB:-crawler_db}"]
       interval: 10s

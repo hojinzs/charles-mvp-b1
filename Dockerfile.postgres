@@ -1,0 +1,7 @@
+FROM postgres:16-alpine
+
+# Copy migration scripts to the initialization directory
+COPY ./backend/src/db/migrations/ /docker-entrypoint-initdb.d/
+
+# Ensure scripts have correct permissions
+RUN chmod +r /docker-entrypoint-initdb.d/*
