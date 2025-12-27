@@ -42,7 +42,7 @@ export const startProcessor = () => {
           await new Promise((resolve) => setTimeout(resolve, delay));
       }
 
-      return { rank, targetRank };
+      return { rank, targetRank, keyword };
     } catch (e) {
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);
       throw e;

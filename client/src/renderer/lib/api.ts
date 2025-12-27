@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
+
 let api: AxiosInstance | null = null;
 let currentBaseUrl: string | null = null;
 

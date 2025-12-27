@@ -30,12 +30,10 @@ export function setupWebSocket(socketIo: Server) {
          console.log(`[WS] Rank Alert for Job ${jobId}: Rank ${result.rank} > Target ${result.targetRank}`);
          io.emit("rank_alert", {
              keywordId: parseInt(jobId),
-             keyword: "Check Client", // Optimization: Pass keyword in result to avoid DB query here? 
-             // Or rely on client to know the keyword details by ID. 
-             // To be safe, let's just send ID and Rank info.
+             keyword: result.keyword,
              rank: result.rank,
              targetRank: result.targetRank,
-             message: `순위 하락 알림: ${result.rank}위 (목표: ${result.targetRank}위)`
+             message: `순위 하락 알림[${result.keyword}]: ${result.rank}위 (목표: ${result.targetRank}위)`
          });
       }
     } catch (e) {
