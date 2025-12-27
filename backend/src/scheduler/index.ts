@@ -1,13 +1,17 @@
 import dotenv from "dotenv";
+import cron from "node-cron";
 import { crawlQueue } from "../queue/crawlQueue";
 import { getKeywordsToCrawl } from "../db/queries";
 
 dotenv.config();
 
 const SCHEDULER_INTERVAL_MS = parseInt(process.env.SCEDULER_INTERVAL_MS || "60000");
+const SCHEDULER_CRON = process.env.SCHEDULER_CRON || "* * * * *";
 
 async function runScheduler() {
-  console.log(`[Scheduler] Starting... Interval: ${SCHEDULER_INTERVAL_MS}ms`);
+  console.log(`[Scheduler] Starting...`);
+  console.log(`[Scheduler] Cron Pattern: "${SCHEDULER_CRON}"`);
+  console.log(`[Scheduler] Interval Threshold: ${SCHEDULER_INTERVAL_MS}ms`);
 
   const run = async () => {
     try {
@@ -68,8 +72,9 @@ async function runScheduler() {
   // Initial run
   await run();
 
-  // Interval loop
-  setInterval(run, SCHEDULER_INTERVAL_MS);
+  // Cron Job
+  cron.schedule(SCHEDULER_CRON, run);
 }
 
 runScheduler();
+
