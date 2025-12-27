@@ -6,13 +6,13 @@ services:
       POSTGRES_USER: crawler
       POSTGRES_PASSWORD: crawler123
       POSTGRES_DB: crawler_db
-    ports:
-      - "${DATABASE_PORT:-5432}:5432"
+    # ports:
+    #   - "${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/db/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crawler -d crawler_db"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-crawler} -d $${POSTGRES_DB:-crawler_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,8 +20,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: crawler-redis
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
