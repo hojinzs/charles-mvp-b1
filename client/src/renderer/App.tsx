@@ -63,10 +63,6 @@ function App() {
   const [isReady, setIsReady] = useState(false);
   const [backendUrl, setBackendUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkBackend();
-  }, []);
-
   // API initialization and Backend URL management
   useEffect(() => {
     checkBackend();
@@ -81,12 +77,15 @@ function App() {
   const checkBackend = async () => {
     try {
       const url = await window.electronAPI.getBackendUrl();
-      if (url) {
+      if (url && url.length > 0) {
         setBackendUrl(url);
-        initApi(url); // Init immediately
+        initApi(url);
+      } else {
+        setBackendUrl(null);
       }
     } catch (e) {
       console.error('Failed to get backend URL', e);
+      setBackendUrl(null);
     } finally {
       setIsReady(true);
     }

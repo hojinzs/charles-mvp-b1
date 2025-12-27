@@ -37,7 +37,7 @@ export class ProxyManager {
   }
 
   public rotateSession() {
-    this.currentSessionId = uuidv4();
+    this.currentSessionId = uuidv4().split("-")[0];
     console.log(`[ProxyManager] Rotated session to: ${this.currentSessionId}`);
   }
 

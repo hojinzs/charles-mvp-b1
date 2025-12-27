@@ -29,7 +29,7 @@ async function getBrowser(): Promise<Browser> {
     console.log(
       `[Crawler] Using proxy server: ${proxyConfig.host}:${proxyConfig.port}`,
     );
-    launchArgs.push(`--proxy-server=${proxyConfig.host}:${proxyConfig.port}`);
+    launchArgs.push(`--proxy-server=http://${proxyConfig.host}:${proxyConfig.port}`);
   }
 
   browserLaunchPromise = puppeteer
@@ -54,8 +54,8 @@ export async function checkRanking(
   keyword: string,
   targetUrl: string,
 ): Promise<number | null> {
-  let context = null;
-  let page = null;
+  let context: any = null;
+  let page: any = null;
 
   try {
     const browser = await getBrowser();
@@ -66,6 +66,7 @@ export async function checkRanking(
 
     // Authenticate with Proxy (if configured)
     const proxyManager = ProxyManager.getInstance();
+    const proxyConfig = proxyManager.getProxyServer();
     const credentials = proxyManager.getProxyCredentials();
 
     if (credentials) {
@@ -82,7 +83,6 @@ export async function checkRanking(
     );
 
     console.log(`[Crawler] Navigating to search result for: ${keyword}`);
-
     await page.goto(
       `https://m.ad.search.naver.com/search.naver?where=m_expd&query=${encodeURIComponent(keyword)}`,
       { waitUntil: "networkidle0", timeout: 30000 },
@@ -90,7 +90,6 @@ export async function checkRanking(
 
     // Wait for results to load
     await new Promise((r) => setTimeout(r, 2000));
-
     const rank = await page.evaluate((url: string) => {
       const items = document.querySelectorAll("li.list_item");
 

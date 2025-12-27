@@ -18,7 +18,7 @@ export function RootLayout() {
   const handleDisconnect = async () => {
     if (window.confirm('서버 연결을 해제하시겠습니까? 세팅 화면으로 돌아갑니다.')) {
       await window.electronAPI.disconnect();
-      window.location.reload();
+      window.location.href = '/';
     }
   };
 

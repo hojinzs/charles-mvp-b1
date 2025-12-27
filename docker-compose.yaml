@@ -60,10 +60,6 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
-      PROXY_HOST: ${PROXY_HOST}
-      PROXY_PORT: ${PROXY_PORT}
-      PROXY_USER: ${PROXY_USER}
-      PROXY_PASS: ${PROXY_PASS}
     depends_on:
       postgres:
         condition: service_healthy
