@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, Notification, nativeImage } from 'electron';
 import path from 'path';
 import { autoUpdater } from 'electron-updater';
-import { getBackendUrl, setBackendUrl } from './store';
+import { getBackendUrl, setBackendUrl, clearBackendUrl } from './store';
 
 // POC: Global reference to keep window alive
 let mainWindow: BrowserWindow | null = null;
@@ -93,6 +93,11 @@ app.whenReady().then(() => {
 
   ipcMain.handle('backend:get_url', () => {
     return getBackendUrl();
+  });
+
+  ipcMain.handle('backend:disconnect', () => {
+    clearBackendUrl();
+    return true;
   });
 
   ipcMain.handle('show-notification', (_event, { title, body }) => {

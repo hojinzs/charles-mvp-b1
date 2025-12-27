@@ -7,6 +7,9 @@ export const crawlQueue = new Queue(
   "crawl-jobs",
   process.env.REDIS_URL || "redis://localhost:6379",
   {
+    redis: {
+      maxRetriesPerRequest: null,
+    },
     defaultJobOptions: {
       attempts: 3,
       backoff: {

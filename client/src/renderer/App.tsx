@@ -67,25 +67,15 @@ function App() {
     checkBackend();
   }, []);
 
-  // Periodic Health Check
+  // API initialization and Backend URL management
   useEffect(() => {
-    if (!backendUrl) return;
-    
-    // Initialize API client
-    initApi(backendUrl);
+    checkBackend();
+  }, []);
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await apiClient.checkConnection(backendUrl);
-        if (!res.success) {
-          toast.error(`Backend unreachable: ${res.message || 'Unknown error'}`);
-        }
-      } catch (e) {
-        toast.error('Backend unreachable');
-      }
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
+  useEffect(() => {
+    if (backendUrl) {
+      initApi(backendUrl);
+    }
   }, [backendUrl]);
 
   const checkBackend = async () => {

@@ -27,8 +27,12 @@ async function runScheduler() {
       console.log(`[Scheduler] Found ${keywords.length} keywords to check.`);
 
       let enqueuedCount = 0;
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
       for (const kw of keywords) {
+        // Add a small delay to avoid Redis request spikes
+        await sleep(30);
+
         // Deduplication check
         const existingJob = await crawlQueue.getJob(kw.id);
         let shouldEnqueue = !existingJob;

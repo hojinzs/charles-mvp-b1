@@ -24,6 +24,7 @@ declare global {
     electronAPI: {
       setBackendUrl: (url: string) => Promise<boolean>;
       getBackendUrl: () => Promise<string>;
+      disconnect: () => Promise<boolean>;
       showNotification: (notification: { title: string; body: string }) => Promise<boolean>;
     };
   }
