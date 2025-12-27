@@ -89,7 +89,7 @@ const router = Router();
  */
 router.post("/enqueue", async (req, res) => {
   try {
-    const { keywordId, keyword, targetUrl } = req.body;
+    const { keywordId, keyword, targetUrl, targetRank } = req.body;
 
     // In a real app we might verify keywordId exists in DB first
 
@@ -97,6 +97,7 @@ router.post("/enqueue", async (req, res) => {
       keywordId,
       keyword,
       targetUrl,
+      targetRank,
     });
 
     res.json({
@@ -167,6 +168,7 @@ router.post("/enqueue/priority", async (req, res) => {
         keywordId: kw.id,
         keyword: kw.keyword,
         targetUrl: kw.url,
+        targetRank: kw.target_rank,
       }, {
         jobId: kw.id,
         priority: 1

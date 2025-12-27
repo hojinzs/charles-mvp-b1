@@ -1,9 +1,17 @@
 import { pool } from "./connection";
 
-export async function addKeyword(keyword: string, url: string) {
+export async function addKeyword(keyword: string, url: string, tags: string[] = [], targetRank?: number) {
   const result = await pool.query(
-    "INSERT INTO keywords (keyword, url) VALUES ($1, $2) RETURNING *",
-    [keyword, url],
+    "INSERT INTO keywords (keyword, url, tags, target_rank) VALUES ($1, $2, $3, $4) RETURNING *",
+    [keyword, url, tags, targetRank],
+  );
+  return result.rows[0];
+}
+
+export async function updateKeyword(id: number, keyword: string, url: string, tags: string[] = [], targetRank?: number) {
+  const result = await pool.query(
+    "UPDATE keywords SET keyword = $1, url = $2, tags = $3, target_rank = $4 WHERE id = $5 RETURNING *",
+    [keyword, url, tags, targetRank, id],
   );
   return result.rows[0];
 }
@@ -29,9 +37,10 @@ export interface GetKeywordsOptions {
   sortBy: 'created' | 'lastChecked' | 'keyword' | 'rank';
   order: 'asc' | 'desc';
   search?: string;
+  tag?: string;
 }
 
-export async function getKeywordsPaginated({ page, limit, sortBy, order, search }: GetKeywordsOptions) {
+export async function getKeywordsPaginated({ page, limit, sortBy, order, search, tag }: GetKeywordsOptions) {
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const params: any[] = [];
@@ -40,6 +49,12 @@ export async function getKeywordsPaginated({ page, limit, sortBy, order, search 
   if (search) {
     conditions.push(`(keyword ILIKE $${paramIndex} OR url ILIKE $${paramIndex})`);
     params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  if (tag) {
+    conditions.push(`array_to_string(tags, ',') ILIKE $${paramIndex}`);
+    params.push(`%${tag}%`);
     paramIndex++;
   }
 

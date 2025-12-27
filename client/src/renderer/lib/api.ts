@@ -56,10 +56,11 @@ export const apiClient = {
   },
 
   // Keywords
-  getKeywords: (params?: { page?: number; limit?: number; sortBy?: string; order?: 'asc' | 'desc'; search?: string }) => 
+  getKeywords: (params?: { page?: number; limit?: number; sortBy?: string; order?: 'asc' | 'desc'; search?: string; tag?: string }) => 
     handleResponse(getApi().get('/api/keywords', { params })),
-  addKeyword: (keyword: string, url: string) => handleResponse(getApi().post('/api/keywords', { keyword, url })),
-  addKeywordsBulk: (items: {keyword: string, url: string}[]) => {
+  addKeyword: (keyword: string, url: string, tags?: string[], targetRank?: number) => handleResponse(getApi().post('/api/keywords', { keyword, url, tags, targetRank })),
+  updateKeyword: (id: number, data: { keyword: string; url: string; tags?: string[]; targetRank?: number }) => handleResponse(getApi().put(`/api/keywords/${id}`, data)),
+  addKeywordsBulk: (items: {keyword: string; url: string; tags?: string[]; targetRank?: number}[]) => {
       // The previous implementation did Promise.all on the client (main process).
       // Ideally the backend should support bulk insert. 
       // If backend doesn't support bulk, we simulate it here to match previous behavior.

@@ -7,6 +7,7 @@ import { MonitoringPage } from './routes/index';
 import { HistoryPage } from './routes/history';
 import { QueuePage } from './routes/queue';
 import SetupScreen from './features/setup/SetupScreen';
+import { SocketListener } from './features/SocketListener';
 
 // 1. Create Route Tree
 const rootRoute = createRootRoute({
@@ -111,6 +112,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SocketListener backendUrl={backendUrl} />
       <RouterProvider router={router} />
       <Toaster position="top-right" richColors />
     </QueryClientProvider>

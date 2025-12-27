@@ -5,6 +5,8 @@ declare global {
     id: number;
     keyword: string;
     url: string;
+    tags: string[] | null;
+    target_rank: number | null;
     last_rank: number | null;
     last_checked_at: string | null;
     created_at: string;
@@ -22,6 +24,7 @@ declare global {
     electronAPI: {
       setBackendUrl: (url: string) => Promise<boolean>;
       getBackendUrl: () => Promise<string>;
+      showNotification: (notification: { title: string; body: string }) => Promise<boolean>;
     };
   }
 }

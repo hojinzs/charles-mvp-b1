@@ -27,7 +27,8 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
   // Handler: Download Template
   const handleDownloadTemplate = () => {
     const ws = utils.json_to_sheet([
-      { keyword: "예시_키워드", displayURL: "example.com" }
+      { keyword: "예시_키워드", displayURL: "example.com", tags: "태그1,태그2", targetRank: "5" },
+      { keyword: "예시_키워드2", displayURL: "example.com", tags: "", targetRank: "" }
     ]);
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, "Template");
@@ -43,13 +44,15 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
       const arrayBuffer = await file.arrayBuffer();
       const wb = read(arrayBuffer, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = utils.sheet_to_json<{keyword: string, displayURL: string}>(ws);
+      const jsonData = utils.sheet_to_json<any>(ws);
 
       const itemsToAdd = jsonData
         .filter(item => item.keyword && item.displayURL)
         .map(item => ({
           keyword: String(item.keyword).trim(),
-          url: String(item.displayURL).trim()
+          url: String(item.displayURL).trim(),
+          tags: item.tags ? String(item.tags).split(',').map(t => t.trim()) : [],
+          targetRank: item.targetRank ? parseInt(item.targetRank) : undefined
         }));
 
       if (itemsToAdd.length > 0) {
@@ -127,7 +130,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
 
           <div className="mt-8 pt-6 border-t border-gray-100">
             <p className="text-[11px] text-gray-400 leading-relaxed italic">
-              * Columns: <code>keyword</code>, <code>displayURL</code>. <br/>
+              * Columns: <code>keyword</code>, <code>displayURL</code>, <code>tags</code> (optional, comma-separated), <code>targetRank</code> (optional, number). <br/>
               * 최대 1000개까지 한번에 등록 가능합니다.
             </p>
           </div>

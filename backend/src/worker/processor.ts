@@ -7,13 +7,14 @@ interface CrawlJobData {
   keywordId: number;
   keyword: string;
   targetUrl: string;
+  targetRank?: number;
 }
 
 export const startProcessor = () => {
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY || "1");
 
   crawlQueue.process(concurrency, async (job: Job<CrawlJobData>) => {
-    const { keywordId, keyword, targetUrl } = job.data;
+    const { keywordId, keyword, targetUrl, targetRank } = job.data;
 
     console.log(`[Worker ${process.pid}] Processing job ${job.id}: ${keyword}`);
 
@@ -41,7 +42,7 @@ export const startProcessor = () => {
           await new Promise((resolve) => setTimeout(resolve, delay));
       }
 
-      return { rank };
+      return { rank, targetRank };
     } catch (e) {
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);
       throw e;

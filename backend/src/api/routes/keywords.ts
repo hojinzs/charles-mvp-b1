@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, getKeywords } from "../../db/queries";
+import { addKeyword, getKeywords, updateKeyword } from "../../db/queries";
 
 const router = Router();
 
@@ -77,13 +77,76 @@ const router = Router();
  */
 router.post("/", async (req, res) => {
   try {
-    const { keyword, url } = req.body;
+    const { keyword, url, tags, targetRank } = req.body;
     if (!keyword || !url) {
       return res
         .status(400)
         .json({ success: false, error: "Missing keyword or url" });
     }
-    const result = await addKeyword(keyword, url);
+    const result = await addKeyword(keyword, url, tags, targetRank);
+    res.json({ success: true, data: result });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+/**
+ * @swagger
+ * /keywords/{id}:
+ *   put:
+ *     summary: Update an existing keyword
+ *     tags: [Keywords]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Keyword ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - keyword
+ *               - url
+ *             properties:
+ *               keyword:
+ *                 type: string
+ *               url:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               targetRank:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: The updated keyword
+ *       400:
+ *         description: Missing param
+ *       404:
+ *         description: Not found
+ *       500:
+ *         description: Server error
+ */
+router.put("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { keyword, url, tags, targetRank } = req.body;
+    
+    if (!keyword || !url) {
+       return res.status(400).json({ success: false, error: "Missing keyword or url" });
+    }
+
+    const result = await updateKeyword(id, keyword, url, tags, targetRank);
+    if (!result) {
+      return res.status(404).json({ success: false, error: "Keyword not found" });
+    }
+    
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
@@ -152,6 +215,7 @@ router.get("/", async (req, res) => {
     const sortBy = (req.query.sortBy as any) || 'created';
     const order = (req.query.order as any) || 'desc';
     const search = req.query.search as string | undefined;
+    const tag = req.query.tag as string | undefined;
 
     // TODO: Import specific type if extracting this to a separate file or use type assertion
     const result = await import("../../db/queries").then(m => m.getKeywordsPaginated({
@@ -160,6 +224,7 @@ router.get("/", async (req, res) => {
       sortBy,
       order,
       search,
+      tag,
     }));
 
     res.json({ 
