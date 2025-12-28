@@ -45,6 +45,11 @@ export async function getKeywords() {
   return result.rows;
 }
 
+export async function getKeywordById(id: number) {
+  const result = await pool.query("SELECT * FROM keywords WHERE id = $1", [id]);
+  return result.rows[0];
+}
+
 export async function getKeywordsByIds(ids: number[]) {
   const result = await pool.query("SELECT * FROM keywords WHERE id = ANY($1)", [
     ids,

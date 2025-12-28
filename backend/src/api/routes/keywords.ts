@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl } from "../../db/queries";
+import { addKeyword, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl, getKeywordById } from "../../db/queries";
 
 const router = Router();
 
@@ -122,15 +122,17 @@ router.post("/", async (req, res) => {
     // 기존에 동일한 키워드와 URL이 있는지 확인
     const existing = await findKeywordByKeywordAndUrl(keyword, url);
 
-    let result;
     if (existing) {
-      // 기존 레코드가 있으면 업데이트
-      result = await updateKeyword(existing.id, keyword, url, tags, targetRank);
-    } else {
-      // 없으면 새로 추가
-      result = await addKeyword(keyword, url, tags, targetRank);
+      // 기존 레코드가 있으면 409 Conflict 에러 반환
+      return res.status(409).json({
+        success: false,
+        error: "Keyword with the same keyword and url already exists",
+        existingId: existing.id
+      });
     }
 
+    // 없으면 새로 추가
+    const result = await addKeyword(keyword, url, tags, targetRank);
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
@@ -193,16 +195,27 @@ router.put("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { keyword, url, tags, targetRank } = req.body;
-    
+
     if (!keyword || !url) {
        return res.status(400).json({ success: false, error: "Missing keyword or url" });
     }
 
-    const result = await updateKeyword(id, keyword, url, tags, targetRank);
-    if (!result) {
+    // 기존 키워드 정보 조회
+    const existing = await getKeywordById(id);
+    if (!existing) {
       return res.status(404).json({ success: false, error: "Keyword not found" });
     }
-    
+
+    // 태그 병합: 기존 태그와 새 태그를 합치고 중복 제거
+    const existingTags = existing.tags || [];
+    const newTags = tags || [];
+    const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+
+    // targetRank 병합: 새 값이 있으면 사용, 없으면 기존 값 유지
+    const mergedTargetRank = targetRank !== undefined ? targetRank : existing.target_rank;
+
+    const result = await updateKeyword(id, keyword, url, mergedTags, mergedTargetRank);
+
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
