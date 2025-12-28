@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, getKeywords, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl } from "../../db/queries";
+import { addKeyword, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl } from "../../db/queries";
 
 const router = Router();
 
