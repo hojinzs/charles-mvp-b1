@@ -1,10 +1,12 @@
 import { pool } from "./connection";
 
 /**
- * URL에서 프로토콜(http://, https://)을 제거합니다.
+ * URL에서 프로토콜(예: http://, https://, ftp:// 등)을 제거합니다.
  */
-export function removeProtocol(url: string): string {
-  return url.replace(/^https?:\/\//, '');
+function removeProtocol(url: string): string {
+  // Remove any leading URL scheme (e.g., http://, https://, ftp://, ws://).
+  // If no scheme is present, the original string is returned unchanged.
+  return url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
 }
 
 export async function addKeyword(
