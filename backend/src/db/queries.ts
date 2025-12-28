@@ -3,7 +3,7 @@ import { pool } from "./connection";
 /**
  * URL에서 프로토콜(http://, https://)을 제거합니다.
  */
-function removeProtocol(url: string): string {
+export function removeProtocol(url: string): string {
   return url.replace(/^https?:\/\//, '');
 }
 
