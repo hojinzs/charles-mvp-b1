@@ -211,8 +211,8 @@ router.put("/:id", async (req, res) => {
     const newTags = tags || [];
     const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
 
-    // targetRank 병합: 새 값이 있으면 사용, 없으면 기존 값 유지
-    const mergedTargetRank = targetRank !== undefined ? targetRank : existing.target_rank;
+    // targetRank 병합: 새 값이 nullish(undef/null)가 아니면 사용, 그렇지 않으면 기존 값 유지
+    const mergedTargetRank = targetRank ?? existing.target_rank;
 
     const result = await updateKeyword(id, keyword, url, mergedTags, mergedTargetRank);
 
