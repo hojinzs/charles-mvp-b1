@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, getKeywords, updateKeyword, deleteKeyword } from "../../db/queries";
+import { addKeyword, getKeywords, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl } from "../../db/queries";
 
 const router = Router();
 
@@ -118,7 +118,19 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ success: false, error: "Missing keyword or url" });
     }
-    const result = await addKeyword(keyword, url, tags, targetRank);
+
+    // 기존에 동일한 키워드와 URL이 있는지 확인
+    const existing = await findKeywordByKeywordAndUrl(keyword, url);
+
+    let result;
+    if (existing) {
+      // 기존 레코드가 있으면 업데이트
+      result = await updateKeyword(existing.id, keyword, url, tags, targetRank);
+    } else {
+      // 없으면 새로 추가
+      result = await addKeyword(keyword, url, tags, targetRank);
+    }
+
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
