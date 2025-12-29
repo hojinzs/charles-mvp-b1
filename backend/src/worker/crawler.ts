@@ -5,6 +5,13 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { Browser } from "puppeteer";
 import { createCursor } from "ghost-cursor";
 import { ProxyManager } from "./proxy-manager";
+import { networkBytesHistogram, networkBytesCounter } from "../metrics";
+
+export interface NetworkStats {
+  requestSize: number;
+  responseSize: number;
+  totalSize: number;
+}
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
@@ -67,7 +74,7 @@ async function getBrowser(): Promise<Browser> {
 async function checkRankingViaAxios(
   keyword: string,
   targetUrl: string,
-): Promise<number | null> {
+): Promise<{ rank: number | null; networkStats: NetworkStats }> {
   try {
     const proxyManager = ProxyManager.getInstance();
     const proxyConfig = proxyManager.getProxyServer();
@@ -107,6 +114,24 @@ async function checkRankingViaAxios(
     console.log(`[Crawler] (Axios) Checking ${keyword}...`);
     const response = await axios.get(searchUrl, axiosConfig);
 
+    // Calculate network sizes
+    const responseBodySize = Buffer.byteLength(response.data, 'utf8');
+    const responseHeaderSize = JSON.stringify(response.headers).length;
+    const responseTotalSize = responseBodySize + responseHeaderSize;
+
+    const requestHeaderSize = JSON.stringify(axiosConfig.headers || {}).length;
+    const requestTotalSize = requestHeaderSize + searchUrl.length;
+
+    const totalNetworkSize = requestTotalSize + responseTotalSize;
+
+    // Record metrics
+    networkBytesHistogram.observe({ method: 'axios', direction: 'request' }, requestTotalSize);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'response' }, responseTotalSize);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'total' }, totalNetworkSize);
+    networkBytesCounter.inc({ method: 'axios' }, totalNetworkSize);
+
+    console.log(`[Crawler] (Axios) Network stats - Request: ${requestTotalSize}B, Response: ${responseTotalSize}B, Total: ${totalNetworkSize}B`);
+
     const $ = cheerio.load(response.data);
     const items = $("li.list_item");
     let rank = null;
@@ -127,17 +152,32 @@ async function checkRankingViaAxios(
       console.log(`[Crawler] (Axios) Not found or valid result.`);
     }
 
-    return rank;
+    return {
+      rank,
+      networkStats: {
+        requestSize: requestTotalSize,
+        responseSize: responseTotalSize,
+        totalSize: totalNetworkSize
+      }
+    };
   } catch (error) {
     console.warn(`[Crawler] (Axios) Failed: ${error}`);
-    return null; // Fallback to puppeteer
+    // Return null rank with zero network stats on error
+    return {
+      rank: null,
+      networkStats: {
+        requestSize: 0,
+        responseSize: 0,
+        totalSize: 0
+      }
+    };
   }
 }
 
 async function checkRankingViaPuppeteer(
   keyword: string,
   targetUrl: string,
-): Promise<number | null> {
+): Promise<{ rank: number | null; networkStats: NetworkStats }> {
   let context: any = null;
   let page: any = null;
 
@@ -147,6 +187,29 @@ async function checkRankingViaPuppeteer(
     // Create isolated context for this job
     context = await browser.createIncognitoBrowserContext();
     page = await context.newPage();
+
+    // Network monitoring setup
+    let totalRequestSize = 0;
+    let totalResponseSize = 0;
+
+    page.on('request', (request: any) => {
+      const headers = request.headers();
+      const headerSize = JSON.stringify(headers).length;
+      const urlSize = request.url().length;
+      totalRequestSize += headerSize + urlSize;
+    });
+
+    page.on('response', async (response: any) => {
+      try {
+        const buffer = await response.buffer();
+        const bodySize = buffer.length;
+        const headers = response.headers();
+        const headerSize = JSON.stringify(headers).length;
+        totalResponseSize += bodySize + headerSize;
+      } catch (e) {
+        // Some responses may not support buffer()
+      }
+    });
 
     // Authenticate with Proxy (if configured)
     const proxyManager = ProxyManager.getInstance();
@@ -211,7 +274,25 @@ async function checkRankingViaPuppeteer(
     }, targetUrl);
 
     console.log(`[Crawler] (Puppeteer) Rank for "${keyword}": ${rank}`);
-    return rank;
+
+    // Calculate total network size and record metrics
+    const totalNetworkSize = totalRequestSize + totalResponseSize;
+
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'request' }, totalRequestSize);
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'response' }, totalResponseSize);
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'total' }, totalNetworkSize);
+    networkBytesCounter.inc({ method: 'puppeteer' }, totalNetworkSize);
+
+    console.log(`[Crawler] (Puppeteer) Network stats - Request: ${totalRequestSize}B, Response: ${totalResponseSize}B, Total: ${totalNetworkSize}B`);
+
+    return {
+      rank,
+      networkStats: {
+        requestSize: totalRequestSize,
+        responseSize: totalResponseSize,
+        totalSize: totalNetworkSize
+      }
+    };
   } catch (e) {
     console.error(`Error crawling keyword "${keyword}" with Puppeteer:`, e);
 
@@ -365,17 +446,25 @@ async function navigateWithBypass(page: any, keyword: string, cursor: any) {
 export async function checkRanking(
   keyword: string,
   targetUrl: string,
-): Promise<{ rank: number | null; method: "axios" | "puppeteer" }> {
+): Promise<{ rank: number | null; method: "axios" | "puppeteer"; networkStats: NetworkStats }> {
   // 1. Try Axios (Fast)
   const axiosResult = await checkRankingViaAxios(keyword, targetUrl);
-  if (axiosResult !== null) {
-    return { rank: axiosResult, method: "axios" };
+  if (axiosResult.rank !== null) {
+    return {
+      rank: axiosResult.rank,
+      method: "axios",
+      networkStats: axiosResult.networkStats
+    };
   }
 
   // 2. Fallback to Puppeteer (Slow, stealth)
   console.log(
     `[Crawler] Axios failed or found nothing for "${keyword}". Falling back to Puppeteer...`,
   );
-  const puppeteerRank = await checkRankingViaPuppeteer(keyword, targetUrl);
-  return { rank: puppeteerRank, method: "puppeteer" };
+  const puppeteerResult = await checkRankingViaPuppeteer(keyword, targetUrl);
+  return {
+    rank: puppeteerResult.rank,
+    method: "puppeteer",
+    networkStats: puppeteerResult.networkStats
+  };
 }

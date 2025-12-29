@@ -41,3 +41,20 @@ export const jobsScheduledCounter = new client.Counter({
   help: "Total number of crawling jobs scheduled",
   registers: [register],
 });
+
+// 5. Network Bytes (Histogram)
+export const networkBytesHistogram = new client.Histogram({
+  name: "crawling_network_bytes",
+  help: "Network bytes transferred during crawling",
+  labelNames: ["method", "direction"], // method: axios/puppeteer, direction: request/response/total
+  buckets: [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000],
+  registers: [register],
+});
+
+// 6. Total Network Bytes Counter
+export const networkBytesCounter = new client.Counter({
+  name: "crawling_network_bytes_total",
+  help: "Total network bytes transferred",
+  labelNames: ["method"], // method: axios/puppeteer
+  registers: [register],
+});
