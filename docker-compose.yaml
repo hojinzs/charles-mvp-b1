@@ -40,8 +40,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend/src:/app/src
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
       interval: 30s
@@ -62,8 +60,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend/src:/app/src
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
       interval: 30s
@@ -85,8 +81,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend/src:/app/src
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
       interval: 30s
