@@ -38,7 +38,7 @@ export const startProcessor = () => {
       jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
       jobsCompletedCounter.inc({ status: "success", method: method });
 
-      await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms, Network: ${networkStats.totalSize}B`);
+      await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms, Network: ${networkStats.totalSize}KB`);
       await job.progress(80);
 
       // Save Result to DB

@@ -138,9 +138,9 @@ export async function saveRanking(
   crawlingDuration?: number,
   totalDuration?: number,
   crawlingMethod?: string,
-  requestBytes?: number,
-  responseBytes?: number,
-  totalNetworkBytes?: number,
+  requestKb?: number,
+  responseKb?: number,
+  totalNetworkKb?: number,
 ) {
   const client = await pool.connect();
 
@@ -151,7 +151,7 @@ export async function saveRanking(
     await client.query(
       `INSERT INTO keyword_rankings
        (keyword_id, rank, crawling_created_at, crawling_duration, total_duration, crawling_method,
-        request_bytes, response_bytes, total_network_bytes)
+        request_kb, response_kb, total_network_kb)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         keywordId,
@@ -160,9 +160,9 @@ export async function saveRanking(
         crawlingDuration,
         totalDuration,
         crawlingMethod,
-        requestBytes,
-        responseBytes,
-        totalNetworkBytes,
+        requestKb,
+        responseKb,
+        totalNetworkKb,
       ],
     );
 

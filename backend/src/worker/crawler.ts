@@ -8,9 +8,9 @@ import { ProxyManager } from "./proxy-manager";
 import { networkBytesHistogram, networkBytesCounter } from "../metrics";
 
 export interface NetworkStats {
-  requestSize: number;
-  responseSize: number;
-  totalSize: number;
+  requestSize: number;  // in KB
+  responseSize: number; // in KB
+  totalSize: number;    // in KB
 }
 
 // Add stealth plugin
@@ -114,23 +114,28 @@ async function checkRankingViaAxios(
     console.log(`[Crawler] (Axios) Checking ${keyword}...`);
     const response = await axios.get(searchUrl, axiosConfig);
 
-    // Calculate network sizes
-    const responseBodySize = Buffer.byteLength(response.data, 'utf8');
-    const responseHeaderSize = JSON.stringify(response.headers).length;
-    const responseTotalSize = responseBodySize + responseHeaderSize;
+    // Calculate network sizes in bytes
+    const responseBodySizeBytes = Buffer.byteLength(response.data, 'utf8');
+    const responseHeaderSizeBytes = JSON.stringify(response.headers).length;
+    const responseTotalSizeBytes = responseBodySizeBytes + responseHeaderSizeBytes;
 
-    const requestHeaderSize = JSON.stringify(axiosConfig.headers || {}).length;
-    const requestTotalSize = requestHeaderSize + searchUrl.length;
+    const requestHeaderSizeBytes = JSON.stringify(axiosConfig.headers || {}).length;
+    const requestTotalSizeBytes = requestHeaderSizeBytes + searchUrl.length;
 
-    const totalNetworkSize = requestTotalSize + responseTotalSize;
+    const totalNetworkSizeBytes = requestTotalSizeBytes + responseTotalSizeBytes;
 
-    // Record metrics
-    networkBytesHistogram.observe({ method: 'axios', direction: 'request' }, requestTotalSize);
-    networkBytesHistogram.observe({ method: 'axios', direction: 'response' }, responseTotalSize);
-    networkBytesHistogram.observe({ method: 'axios', direction: 'total' }, totalNetworkSize);
-    networkBytesCounter.inc({ method: 'axios' }, totalNetworkSize);
+    // Record metrics in bytes (Prometheus standard)
+    networkBytesHistogram.observe({ method: 'axios', direction: 'request' }, requestTotalSizeBytes);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'response' }, responseTotalSizeBytes);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'total' }, totalNetworkSizeBytes);
+    networkBytesCounter.inc({ method: 'axios' }, totalNetworkSizeBytes);
 
-    console.log(`[Crawler] (Axios) Network stats - Request: ${requestTotalSize}B, Response: ${responseTotalSize}B, Total: ${totalNetworkSize}B`);
+    // Convert to KB for storage
+    const requestKb = Math.round(requestTotalSizeBytes / 1024);
+    const responseKb = Math.round(responseTotalSizeBytes / 1024);
+    const totalKb = Math.round(totalNetworkSizeBytes / 1024);
+
+    console.log(`[Crawler] (Axios) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
 
     const $ = cheerio.load(response.data);
     const items = $("li.list_item");
@@ -155,9 +160,9 @@ async function checkRankingViaAxios(
     return {
       rank,
       networkStats: {
-        requestSize: requestTotalSize,
-        responseSize: responseTotalSize,
-        totalSize: totalNetworkSize
+        requestSize: requestKb,
+        responseSize: responseKb,
+        totalSize: totalKb
       }
     };
   } catch (error) {
@@ -275,22 +280,27 @@ async function checkRankingViaPuppeteer(
 
     console.log(`[Crawler] (Puppeteer) Rank for "${keyword}": ${rank}`);
 
-    // Calculate total network size and record metrics
-    const totalNetworkSize = totalRequestSize + totalResponseSize;
+    // Calculate total network size and record metrics in bytes
+    const totalNetworkSizeBytes = totalRequestSize + totalResponseSize;
 
     networkBytesHistogram.observe({ method: 'puppeteer', direction: 'request' }, totalRequestSize);
     networkBytesHistogram.observe({ method: 'puppeteer', direction: 'response' }, totalResponseSize);
-    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'total' }, totalNetworkSize);
-    networkBytesCounter.inc({ method: 'puppeteer' }, totalNetworkSize);
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'total' }, totalNetworkSizeBytes);
+    networkBytesCounter.inc({ method: 'puppeteer' }, totalNetworkSizeBytes);
 
-    console.log(`[Crawler] (Puppeteer) Network stats - Request: ${totalRequestSize}B, Response: ${totalResponseSize}B, Total: ${totalNetworkSize}B`);
+    // Convert to KB for storage
+    const requestKb = Math.round(totalRequestSize / 1024);
+    const responseKb = Math.round(totalResponseSize / 1024);
+    const totalKb = Math.round(totalNetworkSizeBytes / 1024);
+
+    console.log(`[Crawler] (Puppeteer) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
 
     return {
       rank,
       networkStats: {
-        requestSize: totalRequestSize,
-        responseSize: totalResponseSize,
-        totalSize: totalNetworkSize
+        requestSize: requestKb,
+        responseSize: responseKb,
+        totalSize: totalKb
       }
     };
   } catch (e) {
