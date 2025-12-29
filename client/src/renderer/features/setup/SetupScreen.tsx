@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 
 import { apiClient, initApi } from '../../lib/api';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 const SetupScreen: React.FC = () => {
   const [url, setUrl] = useState('http://localhost:3000');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const setBackendUrl = useSettingsStore((state) => state.setBackendUrl);
 
   const handleConnect = async () => {
     setIsLoading(true);
@@ -15,8 +18,8 @@ const SetupScreen: React.FC = () => {
       initApi(url);
       const response = await apiClient.checkConnection(url);
       if (response.success) {
-        await window.electronAPI.setBackendUrl(url);
-        window.location.reload(); // Reload to re-check backend presence in App.tsx
+        setBackendUrl(url);
+        // App component will react to store change and re-render
       } else {
         setError(response.message || 'Connection failed');
       }
