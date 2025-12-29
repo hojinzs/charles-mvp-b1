@@ -2,6 +2,7 @@ import { Job } from "bull";
 import { crawlQueue } from "../queue/crawlQueue";
 import { checkRanking } from "./crawler";
 import { saveRanking } from "../db/queries";
+import { jobDurationHistogram, jobsCompletedCounter } from "../metrics";
 
 interface CrawlJobData {
   keywordId: number;
@@ -19,21 +20,41 @@ export const startProcessor = () => {
     console.log(`[Worker ${process.pid}] Processing job ${job.id}: ${keyword}`);
 
     try {
+      const processingStartTime = Date.now();
+      await job.log(`Processing started at ${new Date(processingStartTime).toISOString()}`);
+
       // Progress update
       await job.progress(10);
 
       // Execute Crawling
-      const rank = await checkRanking(keyword, targetUrl);
+      const { rank, method } = await checkRanking(keyword, targetUrl);
+      
+      const processingEndTime = Date.now();
+      const crawlingDuration = processingEndTime - processingStartTime;
+      const totalDuration = processingEndTime - job.timestamp; // job.timestamp is enqueue time
 
+      // Record Metrics
+      jobDurationHistogram.observe({ phase: "processing" }, crawlingDuration / 1000);
+      jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
+      jobsCompletedCounter.inc({ status: "success", method: method });
+
+      await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms`);
       await job.progress(80);
 
       // Save Result to DB
-      await saveRanking(keywordId, rank);
+      await saveRanking(
+        keywordId, 
+        rank, 
+        new Date(job.timestamp), 
+        crawlingDuration, 
+        totalDuration, 
+        method
+      );
 
       await job.progress(100);
 
       console.log(
-        `[Worker ${process.pid}] Job ${job.id} completed. Rank: ${rank}`,
+        `[Worker ${process.pid}] Job ${job.id} completed. Rank: ${rank}, Method: ${method}, Duration: ${crawlingDuration}ms`,
       );
 
       // Rate limiting delay
@@ -44,6 +65,7 @@ export const startProcessor = () => {
 
       return { rank, targetRank, keyword };
     } catch (e) {
+      jobsCompletedCounter.inc({ status: "failed", method: "unknown" });
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);
       throw e;
     }

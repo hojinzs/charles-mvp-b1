@@ -131,16 +131,32 @@ export async function getKeywordsToCrawl(thresholdDate: Date) {
   return result.rows;
 }
 
-export async function saveRanking(keywordId: number, rank: number | null) {
+export async function saveRanking(
+  keywordId: number,
+  rank: number | null,
+  crawlingCreatedAt?: Date,
+  crawlingDuration?: number,
+  totalDuration?: number,
+  crawlingMethod?: string,
+) {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    // Record ranking
+    // Record ranking with metrics
     await client.query(
-      "INSERT INTO keyword_rankings (keyword_id, rank) VALUES ($1, $2)",
-      [keywordId, rank],
+      `INSERT INTO keyword_rankings 
+       (keyword_id, rank, crawling_created_at, crawling_duration, total_duration, crawling_method) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        keywordId,
+        rank,
+        crawlingCreatedAt,
+        crawlingDuration,
+        totalDuration,
+        crawlingMethod,
+      ],
     );
 
     // Update keyword status

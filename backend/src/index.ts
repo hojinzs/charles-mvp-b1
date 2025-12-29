@@ -8,6 +8,7 @@ import { setupWebSocket } from "./api/websocket";
 import { startProcessor } from "./worker/processor";
 import { runScheduler } from "./scheduler/scheduler";
 import { getProcessType } from "./process";
+import { register } from "./metrics";
 
 dotenv.config();
 
@@ -81,6 +82,16 @@ app.get("/health", (req, res) => {
  */
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to the API" });
+});
+
+// Metrics Endpoint
+app.get("/metrics", async (req, res) => {
+  try {
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
+  } catch (e) {
+    res.status(500).end(e);
+  }
 });
 
 httpServer.listen(PORT, () => {

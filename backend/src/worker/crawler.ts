@@ -365,16 +365,17 @@ async function navigateWithBypass(page: any, keyword: string, cursor: any) {
 export async function checkRanking(
   keyword: string,
   targetUrl: string,
-): Promise<number | null> {
+): Promise<{ rank: number | null; method: "axios" | "puppeteer" }> {
   // 1. Try Axios (Fast)
   const axiosResult = await checkRankingViaAxios(keyword, targetUrl);
   if (axiosResult !== null) {
-    return axiosResult;
+    return { rank: axiosResult, method: "axios" };
   }
 
   // 2. Fallback to Puppeteer (Slow, stealth)
   console.log(
     `[Crawler] Axios failed or found nothing for "${keyword}". Falling back to Puppeteer...`,
   );
-  return checkRankingViaPuppeteer(keyword, targetUrl);
+  const puppeteerRank = await checkRankingViaPuppeteer(keyword, targetUrl);
+  return { rank: puppeteerRank, method: "puppeteer" };
 }
