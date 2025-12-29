@@ -34,7 +34,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-    command: ["--process=api"]
+    command: ["--process=api,ws"]
     depends_on:
       postgres:
         condition: service_healthy

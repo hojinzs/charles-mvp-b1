@@ -12,14 +12,15 @@ export function getProcessType(): string[] {
         if (nextArg.startsWith('-')) {
           break;
         }
-        result.push(nextArg);
+        result.push(...nextArg.split(',')); // Support comma in space-separated args too
         i = j; // Advance outer loop
       }
     } else if (arg.startsWith('--process=')) {
-      result.push(arg.split('=')[1]);
+      const value = arg.split('=')[1];
+      result.push(...value.split(','));
     } else if (!arg.startsWith('-')) {
       // positional argument
-      result.push(arg);
+      result.push(...arg.split(','));
     }
   }
 
@@ -28,5 +29,5 @@ export function getProcessType(): string[] {
   }
 
   const env = process.env.PROCESS_TYPE;
-  return env ? [env] : ['all'];
+  return env ? env.split(',') : ['all'];
 }
