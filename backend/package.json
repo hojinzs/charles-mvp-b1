@@ -4,17 +4,18 @@
   "description": "Naver Search Ranking Monitoring System - Server",
   "main": "dist/api/server.js",
   "scripts": {
-    "start:api": "node dist/api/server.js",
-    "start:worker": "node dist/worker/index.js",
-    "start:scheduler": "node dist/scheduler/index.js",
-    "dev:api": "ts-node-dev --respawn --transpile-only src/api/server.ts",
-    "dev:worker": "ts-node-dev --respawn --transpile-only src/worker/index.ts",
-    "dev:scheduler": "ts-node-dev --respawn --transpile-only src/scheduler/index.ts",
+    "start:api": "node dist/index.js --process=api",
+    "start:worker": "node dist/index.js --process=worker",
+    "start:scheduler": "node dist/index.js --process=scheduler",
+    "start:all": "node dist/index.js --process=all",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:api": "ts-node-dev --respawn --transpile-only src/index.ts --process=api,ws",
+    "dev:worker": "ts-node-dev --respawn --transpile-only src/index.ts --process=worker",
+    "dev:scheduler": "ts-node-dev --respawn --transpile-only src/index.ts --process=scheduler",
     "build": "tsc",
     "lint": "eslint src/**/*.ts",
     "test": "jest",
-    "docker:infra": "docker-compose up -d postgres redis",
-    "prepare": "husky"
+    "docker:infra": "docker-compose -f ../docker-compose.infra.yaml up -d"
   },
   "keywords": [
     "crawler",
@@ -26,6 +27,7 @@
   "license": "ISC",
   "dependencies": {
     "bull": "^4.12.0",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
