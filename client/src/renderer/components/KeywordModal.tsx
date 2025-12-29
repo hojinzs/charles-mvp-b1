@@ -90,9 +90,10 @@ export function KeywordModal({ isOpen, onClose, initialData }: KeywordModalProps
                 type="text" 
                 value={keyword}
                 onChange={e => setKeyword(e.target.value)}
-                className="w-full border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                className={`w-full border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${isEdit ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 placeholder="e.g. 꽃배달"
                 required
+                disabled={isEdit}
               />
             </div>
             <div>
@@ -101,9 +102,10 @@ export function KeywordModal({ isOpen, onClose, initialData }: KeywordModalProps
                 type="text" 
                 value={url}
                 onChange={e => setUrl(e.target.value)}
-                className="w-full border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                className={`w-full border border-gray-200 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${isEdit ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 placeholder="e.g. 99flower.com"
                 required
+                disabled={isEdit}
               />
             </div>
             <div className="flex gap-4">

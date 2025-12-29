@@ -1,0 +1,36 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    container_name: crawler-postgres-infra
+    environment:
+      POSTGRES_USER: crawler
+      POSTGRES_PASSWORD: crawler123
+      POSTGRES_DB: crawler_db
+    ports:
+       - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-crawler} -d $${POSTGRES_DB:-crawler_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: crawler-redis-infra
+    ports:
+       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

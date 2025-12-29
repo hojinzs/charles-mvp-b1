@@ -3,13 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.postgres
-    container_name: crawler-postgres
     environment:
       POSTGRES_USER: crawler
       POSTGRES_PASSWORD: crawler123
       POSTGRES_DB: crawler_db
-    # ports:
-    #   - "${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,11 +15,8 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
+  redis:  
     image: redis:7-alpine
-    container_name: crawler-redis
-    # ports:
-    #   - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -34,14 +28,13 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api
-    container_name: crawler-api
+      dockerfile: Dockerfile
     ports:
-      - "${INTERNAL_PORT:-3000}:${EXTERNAL_PORT:-3000}"
+      - "3000:3000"
     environment:
-      PORT: ${INTERNAL_PORT:-3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    command: ["--process=api"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,40 +42,56 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    command: ["--process=worker"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # deploy:
-    #   replicas: 2
-    # volumes:
-    #   - ./backend/src:/app/src
+    volumes:
+      - ./backend/src:/app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   scheduler:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker
-    command: npm run start:scheduler
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       SCEDULER_INTERVAL_MS: ${SCEDULER_INTERVAL_MS:-60000}
       SCHEDULER_CRON: ${SCHEDULER_CRON:-"* * * * *"}
+    command: ["--process=scheduler"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addKeyword, getKeywords, updateKeyword, deleteKeyword } from "../../db/queries";
+import { addKeyword, updateKeyword, deleteKeyword, findKeywordByKeywordAndUrl, getKeywordById } from "../../db/queries";
 
 const router = Router();
 
@@ -118,7 +118,34 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ success: false, error: "Missing keyword or url" });
     }
-    const result = await addKeyword(keyword, url, tags, targetRank);
+
+    // 1. 프로토콜 체크 (http://, https:// 만 허용)
+    // 프로토콜이 있는 경우에만 검사. 없으면 패스 (허용)
+    if (url.includes("://")) {
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return res.status(400).json({ success: false, error: "Only http and https protocols are supported" });
+      }
+    }
+
+    // 2. Normalization: 프로토콜 및 www 제거 (Controller Layer)
+    let normalizedUrl = url;
+    normalizedUrl = normalizedUrl.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, ''); // Remove protocol
+    normalizedUrl = normalizedUrl.replace(/^www\./, "");         // Remove www.
+
+    // 기존에 동일한 키워드와 URL이 있는지 확인
+    const existing = await findKeywordByKeywordAndUrl(keyword, normalizedUrl);
+
+    if (existing) {
+      // 기존 레코드가 있으면 409 Conflict 에러 반환
+      return res.status(409).json({
+        success: false,
+        error: "Keyword with the same keyword and url already exists",
+        existingId: existing.id
+      });
+    }
+
+    // 없으면 정규화된 URL로 추가
+    const result = await addKeyword(keyword, normalizedUrl, tags, targetRank);
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
@@ -145,13 +172,7 @@ router.post("/", async (req, res) => {
  *           schema:
  *             type: object
  *             required:
- *               - keyword
- *               - url
  *             properties:
- *               keyword:
- *                 type: string
- *               url:
- *                 type: string
  *               tags:
  *                 type: array
  *                 items:
@@ -180,17 +201,26 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { keyword, url, tags, targetRank } = req.body;
-    
-    if (!keyword || !url) {
-       return res.status(400).json({ success: false, error: "Missing keyword or url" });
-    }
+    // keyword, url은 수정 불가이므로 destructuring에서 제외하거나 무시
+    const { tags, targetRank } = req.body;
 
-    const result = await updateKeyword(id, keyword, url, tags, targetRank);
-    if (!result) {
+    // 기존 키워드 정보 조회
+    const existing = await getKeywordById(id);
+    if (!existing) {
       return res.status(404).json({ success: false, error: "Keyword not found" });
     }
-    
+
+    // 태그 병합: 기존 태그와 새 태그를 합치고 중복 제거
+    const existingTags = existing.tags || [];
+    const newTags = tags || [];
+    const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+
+    // targetRank 병합: 새 값이 nullish(undef/null)가 아니면 사용, 그렇지 않으면 기존 값 유지
+    const mergedTargetRank = targetRank ?? existing.target_rank;
+
+    // keyword, url은 기존 값 유지
+    const result = await updateKeyword(id, existing.keyword, existing.url, mergedTags, mergedTargetRank);
+
     res.json({ success: true, data: result });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });

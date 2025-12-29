@@ -3,35 +3,44 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
-
-import keywordsRouter from "./routes/keywords";
-import rankingsRouter from "./routes/rankings";
-import jobsRouter from "./routes/jobs";
-import swaggerUi from "swagger-ui-express";
-import specs from "./swagger";
-import { setupWebSocket } from "./websocket";
+import routers from "./api";
+import { setupWebSocket } from "./api/websocket";
+import { startProcessor } from "./worker/processor";
+import { runScheduler } from "./scheduler/scheduler";
+import { getProcessType } from "./process";
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: "*" },
-});
+const processTypes = getProcessType();
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use("/api/keywords", keywordsRouter);
-app.use("/api/rankings", rankingsRouter);
-app.use("/api/jobs", jobsRouter);
-
-// Swagger UI
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
+if(processTypes.includes("api") || processTypes.includes("all")) {
+  app.use(cors());
+  app.use(routers); 
+}
 
 // WebSocket
-setupWebSocket(io);
+if(processTypes.includes("ws") || processTypes.includes("all")) {
+  const io = new Server(httpServer, {
+    cors: { origin: "*" },
+  });
+  setupWebSocket(io); 
+}
+
+// Scheduler
+if(processTypes.includes("scheduler") || processTypes.includes("all")) {
+  runScheduler();
+}
+
+// Worker
+if(processTypes.includes("worker") || processTypes.includes("all")) {
+  startProcessor();
+}
 
 /**
  * @swagger
@@ -74,7 +83,6 @@ app.get("/", (req, res) => {
   res.json({ message: "Welcome to the API" });
 });
 
-const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`API Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}, process types: ${processTypes.join(", ")}`);
 });

@@ -34,6 +34,11 @@ export async function getKeywords() {
   return result.rows;
 }
 
+export async function getKeywordById(id: number) {
+  const result = await pool.query("SELECT * FROM keywords WHERE id = $1", [id]);
+  return result.rows[0];
+}
+
 export async function getKeywordsByIds(ids: number[]) {
   const result = await pool.query("SELECT * FROM keywords WHERE id = ANY($1)", [
     ids,
@@ -178,6 +183,17 @@ export async function deleteKeyword(id: number) {
   const result = await pool.query(
     "DELETE FROM keywords WHERE id = $1 RETURNING id",
     [id]
+  );
+  return result.rows[0];
+}
+
+/**
+ * 키워드와 URL이 동일한 기존 레코드를 찾습니다.
+ */
+export async function findKeywordByKeywordAndUrl(keyword: string, url: string) {
+  const result = await pool.query(
+    "SELECT * FROM keywords WHERE keyword = $1 AND url = $2",
+    [keyword, url]
   );
   return result.rows[0];
 }
