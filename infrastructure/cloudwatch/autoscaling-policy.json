@@ -1,0 +1,18 @@
+{
+  "PolicyName": "crawler-queue-based-scaling",
+  "ServiceNamespace": "ecs",
+  "ResourceId": "service/crawler-workers/crawler-worker-service",
+  "ScalableDimension": "ecs:service:DesiredCount",
+  "PolicyType": "TargetTrackingScaling",
+  "TargetTrackingScalingPolicyConfiguration": {
+    "TargetValue": 20.0,
+    "CustomizedMetricSpecification": {
+      "MetricName": "QueueWaitingJobs",
+      "Namespace": "CrawlerService",
+      "Statistic": "Average",
+      "Dimensions": []
+    },
+    "ScaleInCooldown": 300,
+    "ScaleOutCooldown": 60
+  }
+}

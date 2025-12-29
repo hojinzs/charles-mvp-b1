@@ -1,0 +1,41 @@
+# AWS Configuration
+aws_region = "ap-northeast-2"
+project_name = "crawler"
+environment = "production"
+
+# VPC and Network Configuration
+# VPC ID는 EC2 인스턴스가 실행 중인 VPC ID를 입력
+vpc_id = "vpc-xxxxxxxxxxxxxxxxx"
+
+# Private Subnet IDs (ECS 워커가 실행될 프라이빗 서브넷)
+# NAT Gateway를 통해 인터넷 접근 가능해야 함
+private_subnet_ids = [
+  "subnet-xxxxxxxxxxxxxxxxx",
+  "subnet-yyyyyyyyyyyyyyyyy"
+]
+
+# EC2 인스턴스 Security Group ID
+# ECS 워커가 EC2의 Redis/PostgreSQL에 접근하기 위해 필요
+ec2_security_group_id = "sg-xxxxxxxxxxxxxxxxx"
+
+# EC2 Private IP (Redis/PostgreSQL 접근용)
+ec2_private_ip = "10.0.1.100"
+
+# Container Image
+# ECR에 푸시한 Docker 이미지 URL
+container_image = "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/crawler-worker:latest"
+
+# AWS Secrets Manager ARNs
+# DATABASE_URL과 REDIS_URL을 Secrets Manager에 저장 후 ARN 입력
+database_url_secret_arn = "arn:aws:secretsmanager:ap-northeast-2:123456789012:secret:crawler/database-url-AbCdEf"
+redis_url_secret_arn = "arn:aws:secretsmanager:ap-northeast-2:123456789012:secret:crawler/redis-url-XyZaBc"
+
+# Auto Scaling Configuration
+min_capacity = 0    # 최소 워커 수 (작업 없을 때 0으로 축소)
+max_capacity = 50   # 최대 워커 수
+target_queue_size = 20  # 워커당 목표 큐 크기 (20개 작업 = 1개 워커)
+
+# 예시:
+# - Queue에 40개 작업이 대기 중이면 → 2개 워커 실행
+# - Queue에 100개 작업이 대기 중이면 → 5개 워커 실행
+# - Queue가 비어있으면 → 0개 워커 (비용 $0)

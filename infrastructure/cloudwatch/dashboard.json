@@ -1,0 +1,197 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["CrawlerService", "QueueWaitingJobs", { "stat": "Average", "label": "대기 중인 작업" }],
+          [".", ".", { "stat": "Maximum", "label": "최대 대기 작업" }]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "큐 대기 작업 수",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        },
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "Scale Up Threshold",
+              "value": 20,
+              "fill": "above",
+              "color": "#ff9900"
+            },
+            {
+              "label": "Scale Down Threshold",
+              "value": 10,
+              "fill": "below",
+              "color": "#1f77b4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/ECS", "RunningTasksCount", { "stat": "Average", "label": "ECS 워커 수" }],
+          ["ECS/ContainerInsights", "DesiredTaskCount", { "stat": "Average", "label": "목표 워커 수" }]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "ECS 워커 실행 수",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 50
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["CrawlerService", "JobsCompletedTotal", { "stat": "Sum", "label": "완료된 작업" }],
+          [".", "JobsFailedTotal", { "stat": "Sum", "label": "실패한 작업" }]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "작업 완료/실패 수",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["CrawlerService", "JobDurationSeconds", { "stat": "Average", "label": "평균 처리 시간" }],
+          [".", ".", { "stat": "p99", "label": "P99 처리 시간" }]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "작업 처리 시간",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "label": "초"
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/EC2", "CPUUtilization", { "stat": "Average", "label": "EC2 CPU 사용률" }],
+          ["AWS/ECS", "CPUUtilization", { "stat": "Average", "label": "ECS CPU 사용률" }]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "ap-northeast-2",
+        "title": "CPU 사용률",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100,
+            "label": "%"
+          }
+        }
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 12,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/ecs/crawler-worker'\n| fields @timestamp, @message\n| filter @message like /error|failed|exception/i\n| sort @timestamp desc\n| limit 100",
+        "region": "ap-northeast-2",
+        "title": "최근 에러 로그",
+        "stacked": false
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 18,
+      "width": 12,
+      "height": 3,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 * 0.05 * 24 * 30",
+              "label": "월 예상 비용 (USD)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          ["AWS/ECS", "RunningTasksCount", { "id": "m1", "visible": false }]
+        ],
+        "view": "singleValue",
+        "region": "ap-northeast-2",
+        "title": "ECS 월 예상 비용 (Fargate)",
+        "period": 300,
+        "setPeriodToTimeRange": true
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 18,
+      "width": 12,
+      "height": 3,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "m1 / m2",
+              "label": "워커당 처리량 (jobs/worker)",
+              "id": "e1",
+              "region": "ap-northeast-2"
+            }
+          ],
+          ["CrawlerService", "QueueWaitingJobs", { "id": "m1", "visible": false }],
+          ["AWS/ECS", "RunningTasksCount", { "id": "m2", "visible": false }]
+        ],
+        "view": "singleValue",
+        "region": "ap-northeast-2",
+        "title": "워커당 부하",
+        "period": 60,
+        "setPeriodToTimeRange": true
+      }
+    }
+  ]
+}

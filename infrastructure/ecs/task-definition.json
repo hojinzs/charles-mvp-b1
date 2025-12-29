@@ -1,0 +1,107 @@
+{
+  "family": "crawler-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::{ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::{ACCOUNT_ID}:role/crawlerWorkerTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "crawler-worker",
+      "image": "{ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com/crawler-worker:latest",
+      "essential": true,
+      "command": ["--process=worker"],
+      "environment": [
+        {
+          "name": "WORKER_CONCURRENCY",
+          "value": "4"
+        },
+        {
+          "name": "WORKER_INTERVAL_MS",
+          "value": "500"
+        },
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/database-url"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/redis-url"
+        },
+        {
+          "name": "PROXY_HOST",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/proxy-host"
+        },
+        {
+          "name": "PROXY_PORT",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/proxy-port"
+        },
+        {
+          "name": "PROXY_USER",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/proxy-user"
+        },
+        {
+          "name": "PROXY_PASS",
+          "valueFrom": "arn:aws:secretsmanager:ap-northeast-2:{ACCOUNT_ID}:secret:crawler/proxy-pass"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/crawler-worker",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"process.exit(0)\""],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "stopTimeout": 120,
+      "ulimits": [
+        {
+          "name": "nofile",
+          "softLimit": 65536,
+          "hardLimit": 65536
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "puppeteer-cache",
+          "containerPath": "/home/pptruser/.cache/puppeteer",
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "puppeteer-cache"
+    }
+  ],
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Service",
+      "value": "crawler"
+    },
+    {
+      "key": "ManagedBy",
+      "value": "terraform"
+    }
+  ]
+}

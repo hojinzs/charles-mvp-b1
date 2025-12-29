@@ -1,0 +1,46 @@
+{
+  "serviceName": "crawler-worker-service",
+  "cluster": "crawler-workers",
+  "taskDefinition": "crawler-worker:1",
+  "desiredCount": 0,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-xxxxxxxxx",
+        "subnet-yyyyyyyyy"
+      ],
+      "securityGroups": [
+        "sg-ecs-worker"
+      ],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 50,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "schedulingStrategy": "REPLICA",
+  "enableECSManagedTags": true,
+  "propagateTags": "SERVICE",
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Service",
+      "value": "crawler-worker"
+    },
+    {
+      "key": "AutoScaling",
+      "value": "enabled"
+    }
+  ],
+  "enableExecuteCommand": true
+}

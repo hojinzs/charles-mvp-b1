@@ -1,0 +1,175 @@
+version: "3.9"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: crawler-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crawler}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crawler123}
+      POSTGRES_DB: ${POSTGRES_DB:-crawler_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crawler}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Redis Queue
+  redis:
+    image: redis:7-alpine
+    container_name: crawler-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # API Server (Express + WebSocket)
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crawler-api
+    command: ["--process=api,ws"]
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-crawler}:${POSTGRES_PASSWORD:-crawler123}@postgres:5432/${POSTGRES_DB:-crawler_db}
+      - REDIS_URL=redis://redis:6379
+      - CLOUDWATCH_METRICS_ENABLED=false  # API에서는 메트릭 퍼블리시하지 않음
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Scheduler (Cron-based job scheduling)
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crawler-scheduler
+    command: ["--process=scheduler"]
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-crawler}:${POSTGRES_PASSWORD:-crawler123}@postgres:5432/${POSTGRES_DB:-crawler_db}
+      - REDIS_URL=redis://redis:6379
+      - SCHEDULER_CRON=${SCHEDULER_CRON:-* * * * *}
+      - SCEDULER_INTERVAL_MS=${SCEDULER_INTERVAL_MS:-60000}
+      - CLOUDWATCH_METRICS_ENABLED=${CLOUDWATCH_METRICS_ENABLED:-true}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Base Workers (최소 처리량 보장, 항상 실행)
+  # ECS 워커가 없을 때 기본 처리를 담당
+  worker-base-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crawler-worker-base-1
+    command: ["--process=worker"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-crawler}:${POSTGRES_PASSWORD:-crawler123}@postgres:5432/${POSTGRES_DB:-crawler_db}
+      - REDIS_URL=redis://redis:6379
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-2}
+      - WORKER_INTERVAL_MS=${WORKER_INTERVAL_MS:-1000}
+      - PROXY_HOST=${PROXY_HOST}
+      - PROXY_PORT=${PROXY_PORT}
+      - PROXY_USER=${PROXY_USER}
+      - PROXY_PASS=${PROXY_PASS}
+      - PUPPETEER_EXECUTABLE_PATH=${PUPPETEER_EXECUTABLE_PATH}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - crawler-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  worker-base-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crawler-worker-base-2
+    command: ["--process=worker"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-crawler}:${POSTGRES_PASSWORD:-crawler123}@postgres:5432/${POSTGRES_DB:-crawler_db}
+      - REDIS_URL=redis://redis:6379
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-2}
+      - WORKER_INTERVAL_MS=${WORKER_INTERVAL_MS:-1000}
+      - PROXY_HOST=${PROXY_HOST}
+      - PROXY_PORT=${PROXY_PORT}
+      - PROXY_USER=${PROXY_USER}
+      - PROXY_PASS=${PROXY_PASS}
+      - PUPPETEER_EXECUTABLE_PATH=${PUPPETEER_EXECUTABLE_PATH}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - crawler-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+networks:
+  crawler-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
