@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { crawlQueue } from "../queue/crawlQueue";
 import { getKeywordsToCrawl } from "../db/queries";
+import { jobsScheduledCounter, queueSizeGauge } from "../metrics";
 
 const SCHEDULER_INTERVAL_MS = parseInt(
   process.env.SCEDULER_INTERVAL_MS || "60000",
@@ -11,6 +12,20 @@ export async function runScheduler() {
   console.log(`[Scheduler] Starting...`);
   console.log(`[Scheduler] Cron Pattern: "${SCHEDULER_CRON}"`);
   console.log(`[Scheduler] Interval Threshold: ${SCHEDULER_INTERVAL_MS}ms`);
+
+  // Start Queue Monitoring
+  setInterval(async () => {
+    try {
+      const counts = await crawlQueue.getJobCounts();
+      queueSizeGauge.set({ status: "waiting" }, counts.waiting);
+      queueSizeGauge.set({ status: "active" }, counts.active);
+      queueSizeGauge.set({ status: "completed" }, counts.completed);
+      queueSizeGauge.set({ status: "failed" }, counts.failed);
+      queueSizeGauge.set({ status: "delayed" }, counts.delayed);
+    } catch (e) {
+      console.error("[Scheduler] Failed to update queue metrics:", e);
+    }
+  }, 5000);
 
   const run = async () => {
     try {
@@ -75,6 +90,7 @@ export async function runScheduler() {
             },
           );
           enqueuedCount++;
+          jobsScheduledCounter.inc();
         }
       }
 

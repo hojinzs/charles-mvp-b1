@@ -2,6 +2,7 @@ import { Job } from "bull";
 import { crawlQueue } from "../queue/crawlQueue";
 import { checkRanking } from "./crawler";
 import { saveRanking } from "../db/queries";
+import { jobDurationHistogram, jobsCompletedCounter } from "../metrics";
 
 interface CrawlJobData {
   keywordId: number;
@@ -32,6 +33,11 @@ export const startProcessor = () => {
       const crawlingDuration = processingEndTime - processingStartTime;
       const totalDuration = processingEndTime - job.timestamp; // job.timestamp is enqueue time
 
+      // Record Metrics
+      jobDurationHistogram.observe({ phase: "processing" }, crawlingDuration / 1000);
+      jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
+      jobsCompletedCounter.inc({ status: "success", method: method });
+
       await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms`);
       await job.progress(80);
 
@@ -59,6 +65,7 @@ export const startProcessor = () => {
 
       return { rank, targetRank, keyword };
     } catch (e) {
+      jobsCompletedCounter.inc({ status: "failed", method: "unknown" });
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);
       throw e;
     }
