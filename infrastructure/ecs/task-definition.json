@@ -24,6 +24,18 @@
         {
           "name": "NODE_ENV",
           "value": "production"
+        },
+        {
+          "name": "CLOUDWATCH_METRICS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "ap-northeast-2"
+        },
+        {
+          "name": "ECS_TASK_ID",
+          "value": "${ECS_CONTAINER_METADATA_URI_V4}"
         }
       ],
       "secrets": [

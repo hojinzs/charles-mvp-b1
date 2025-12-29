@@ -2,7 +2,6 @@ import cron from "node-cron";
 import { crawlQueue } from "../queue/crawlQueue";
 import { getKeywordsToCrawl } from "../db/queries";
 import { jobsScheduledCounter, queueSizeGauge } from "../metrics";
-import { startMetricPublisher } from "../cloudwatch/publisher";
 
 const SCHEDULER_INTERVAL_MS = parseInt(
   process.env.SCEDULER_INTERVAL_MS || "60000",
@@ -14,7 +13,8 @@ export async function runScheduler() {
   console.log(`[Scheduler] Cron Pattern: "${SCHEDULER_CRON}"`);
   console.log(`[Scheduler] Interval Threshold: ${SCHEDULER_INTERVAL_MS}ms`);
 
-  // Start Queue Monitoring (Prometheus)
+  // Start Queue Monitoring (Prometheus only)
+  // CloudWatch 메트릭은 별도의 metric-publisher 프로세스에서 수집
   setInterval(async () => {
     try {
       const counts = await crawlQueue.getJobCounts();
@@ -27,10 +27,6 @@ export async function runScheduler() {
       console.error("[Scheduler] Failed to update queue metrics:", e);
     }
   }, 5000);
-
-  // Start CloudWatch Metrics Publisher (for ECS Auto Scaling)
-  // 1분마다 Queue 메트릭을 CloudWatch에 퍼블리시
-  startMetricPublisher(60000);
 
   const run = async () => {
     try {

@@ -81,13 +81,32 @@ services:
       - REDIS_URL=redis://redis:6379
       - SCHEDULER_CRON=${SCHEDULER_CRON:-* * * * *}
       - SCEDULER_INTERVAL_MS=${SCEDULER_INTERVAL_MS:-60000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - crawler-network
+
+  # Metric Publisher (CloudWatch 전용)
+  # Queue 메트릭을 주기적으로 CloudWatch에 퍼블리시하여 ECS Auto Scaling 트리거
+  metric-publisher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crawler-metric-publisher
+    command: ["--process=metric-publisher"]
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
       - CLOUDWATCH_METRICS_ENABLED=${CLOUDWATCH_METRICS_ENABLED:-true}
       - AWS_REGION=${AWS_REGION:-ap-northeast-2}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - METRIC_PUBLISH_INTERVAL_MS=${METRIC_PUBLISH_INTERVAL_MS:-60000}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped

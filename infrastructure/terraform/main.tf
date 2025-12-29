@@ -217,6 +217,30 @@ resource "aws_iam_role_policy" "worker_cloudwatch_logs" {
   })
 }
 
+# CloudWatch 메트릭 퍼블리시 권한 (ECS 워커가 자체 메트릭 전송)
+resource "aws_iam_role_policy" "worker_cloudwatch_metrics" {
+  name = "${var.project_name}-worker-cloudwatch-metrics"
+  role = aws_iam_role.crawler_worker_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "CrawlerService"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # ========================================
 # Security Group for ECS Tasks
 # ========================================
@@ -313,6 +337,14 @@ resource "aws_ecs_task_definition" "crawler_worker" {
         {
           name  = "NODE_ENV"
           value = "production"
+        },
+        {
+          name  = "CLOUDWATCH_METRICS_ENABLED"
+          value = "true"
+        },
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
         }
       ]
 

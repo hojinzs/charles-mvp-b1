@@ -7,6 +7,7 @@ import routers from "./api";
 import { setupWebSocket } from "./api/websocket";
 import { startProcessor } from "./worker/processor";
 import { runScheduler } from "./scheduler/scheduler";
+import { runMetricPublisher } from "./cloudwatch/metric-publisher";
 import { getProcessType } from "./process";
 import { register } from "./metrics";
 
@@ -22,7 +23,7 @@ app.use(express.json());
 // Routes
 if(processTypes.includes("api") || processTypes.includes("all")) {
   app.use(cors());
-  app.use(routers); 
+  app.use(routers);
 }
 
 // WebSocket
@@ -30,7 +31,7 @@ if(processTypes.includes("ws") || processTypes.includes("all")) {
   const io = new Server(httpServer, {
     cors: { origin: "*" },
   });
-  setupWebSocket(io); 
+  setupWebSocket(io);
 }
 
 // Scheduler
@@ -41,6 +42,11 @@ if(processTypes.includes("scheduler") || processTypes.includes("all")) {
 // Worker
 if(processTypes.includes("worker") || processTypes.includes("all")) {
   startProcessor();
+}
+
+// Metric Publisher (CloudWatch 전용)
+if(processTypes.includes("metric-publisher") || processTypes.includes("all")) {
+  runMetricPublisher();
 }
 
 /**

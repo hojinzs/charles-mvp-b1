@@ -3,6 +3,11 @@ import { crawlQueue } from "../queue/crawlQueue";
 import { checkRanking } from "./crawler";
 import { saveRanking } from "../db/queries";
 import { jobDurationHistogram, jobsCompletedCounter } from "../metrics";
+import {
+  publishWorkerJobComplete,
+  publishWorkerError,
+  startWorkerMetrics,
+} from "../cloudwatch/worker-metrics";
 
 interface CrawlJobData {
   keywordId: number;
@@ -13,6 +18,9 @@ interface CrawlJobData {
 
 export const startProcessor = () => {
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY || "1");
+
+  // Start CloudWatch worker metrics (heartbeat)
+  startWorkerMetrics();
 
   crawlQueue.process(concurrency, async (job: Job<CrawlJobData>) => {
     const { keywordId, keyword, targetUrl, targetRank } = job.data;
@@ -28,15 +36,18 @@ export const startProcessor = () => {
 
       // Execute Crawling
       const { rank, method } = await checkRanking(keyword, targetUrl);
-      
+
       const processingEndTime = Date.now();
       const crawlingDuration = processingEndTime - processingStartTime;
       const totalDuration = processingEndTime - job.timestamp; // job.timestamp is enqueue time
 
-      // Record Metrics
+      // Record Metrics (Prometheus)
       jobDurationHistogram.observe({ phase: "processing" }, crawlingDuration / 1000);
       jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
       jobsCompletedCounter.inc({ status: "success", method: method });
+
+      // Record Metrics (CloudWatch) - ECS 워커도 메트릭 전송
+      await publishWorkerJobComplete(true, method, crawlingDuration / 1000);
 
       await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms`);
       await job.progress(80);
@@ -65,7 +76,16 @@ export const startProcessor = () => {
 
       return { rank, targetRank, keyword };
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const errorType = e instanceof Error ? e.name : "UnknownError";
+
+      // Record Metrics (Prometheus)
       jobsCompletedCounter.inc({ status: "failed", method: "unknown" });
+
+      // Record Metrics (CloudWatch)
+      await publishWorkerError(errorType, errorMessage);
+      await publishWorkerJobComplete(false, "unknown", 0);
+
       console.error(`[Worker ${process.pid}] Job ${job.id} failed:`, e);
       throw e;
     }
