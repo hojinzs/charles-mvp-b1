@@ -174,8 +174,7 @@ async function checkRankingViaPuppeteer(
 
     console.log(`[Crawler] (Puppeteer) Navigating to: ${keyword}`);
     
-    // Go to Naver Main first (optional, for warmer cache/cookies if needed, but direct is often fine)
-    // To be safer: go to search page directly but wait a bit
+    // Initial Strategy: Direct Navigation
     await page.goto(
       `https://m.ad.search.naver.com/search.naver?where=m_expd&query=${encodeURIComponent(
         keyword,
@@ -183,17 +182,18 @@ async function checkRankingViaPuppeteer(
       { waitUntil: "networkidle2", timeout: 30000 },
     );
 
-    // Human-like: Scroll a bit
-    await page.evaluate(async () => {
-      window.scrollBy(0, window.innerHeight / 2);
-    });
-    await new Promise((r) => setTimeout(r, 500 + Math.random() * 1000));
+    // Check if we got results directly
+    let items = await page.$$("li.list_item"); // use element handles to check count
     
-    await page.evaluate(async () => {
-      window.scrollBy(0, -window.innerHeight / 4);
-    });
-    await new Promise((r) => setTimeout(r, 500));
+    if (items.length === 0) {
+        console.warn(`[Crawler] (Puppeteer) Direct navigation yielded 0 items. Attempting bypass logic via m.naver.com...`);
+        // Bypass Logic
+        await navigateWithBypass(page, keyword, cursor);
+        // Re-query items after bypass navigation
+        items = await page.$$("li.list_item");
+    }
 
+    // Use page.evaluate to parse the final page state
     const rank = await page.evaluate((url: string) => {
       const items = document.querySelectorAll("li.list_item");
       for (let i = 0; i < items.length; i++) {
@@ -224,6 +224,142 @@ async function checkRankingViaPuppeteer(
     if (page) await page.close().catch(() => {});
     if (context) await context.close().catch(() => {});
   }
+}
+
+async function navigateWithBypass(page: any, keyword: string, cursor: any) {
+    try {
+        console.log(`[Crawler] (Bypass) Going to m.naver.com`);
+        await page.goto("https://m.naver.com", { waitUntil: "networkidle2" });
+        
+        // Wait for search input
+        const searchInputSelector = "#MM_SEARCH_FAKE"; // Mobile main often uses a fake input that triggers a layer or directly an input
+        const realInputSelector = "#query"; // The real input in the search layer
+
+        // Need to handle different mobile layouts, but standard m.naver.com usually has a search bar.
+        // Try clicking the fake placeholder first if it exists, or the real input
+        if (await page.$(searchInputSelector)) {
+            await cursor.click(searchInputSelector);
+        } else {
+             // Fallback attempt to find any search input
+             await cursor.click("input[type=search], input#query, .sch_inp");
+        }
+        
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Type keyword slowly
+        console.log(`[Crawler] (Bypass) Typing keyword...`);
+        if (await page.$(realInputSelector)) {
+            await page.type(realInputSelector, keyword, { delay: 100 + Math.random() * 50 });
+        } else {
+            // fallback generic typing
+            await page.keyboard.type(keyword, { delay: 100 + Math.random() * 50 });
+        }
+        
+        await new Promise(r => setTimeout(r, 500));
+        await page.keyboard.press("Enter");
+        
+        // Wait for search results
+        await page.waitForNavigation({ waitUntil: "networkidle2" });
+        
+        console.log(`[Crawler] (Bypass) Search results loaded. Looking for ad section...`);
+        
+        // Scroll down looking for "{{keyword}} 관련 광고"
+        // This regex/text match is tricky in Puppeteer. 
+        // We will scroll and check page content repeatedly.
+        
+        let foundSection = false;
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (!foundSection && attempts < maxAttempts) {
+            // Scroll down
+             await page.evaluate(async () => {
+                window.scrollBy(0, window.innerHeight / 1.5);
+            });
+            await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
+            
+            // Check for the section "관련 광고" or similar text
+            // Note: Exact text varies. User said "{{keyword}} 관련 광고".
+            // We search for an element containing text '관련 광고' and maybe the keyword.
+            const successfulClick = await page.evaluate((k: string) => {
+                 const xpath = `//*[contains(text(), '${k}') and contains(text(), '관련 광고')] | //*[contains(text(), '파워링크')]`; // Flexible match
+                 // Often the section title is "파워링크" or "XX 관련 광고"
+                 
+                 // Let's try to find "파워링크" specifically as that's the canonical name, 
+                 // or the user specific "{{keyword}} 관련 광고"
+                 
+                 // Strategy: Find header, then find "More" button in that container or sibling
+                 // Simplified: Look for a link/button that says "더보기" inside a likely ad container
+                 
+                 // Let's try to identify the specific section header given by user.
+                 const headers = Array.from(document.querySelectorAll("h2, h3, strong, span, div"));
+                 let targetHeader: Element | null = null;
+                 
+                 for(const h of headers) {
+                     if (h.textContent?.includes(`${k} 관련 광고`) || h.textContent?.includes("파워링크")) {
+                         targetHeader = h;
+                         break;
+                     }
+                 }
+                 
+                 if (targetHeader) {
+                     // Look for "더보기" button near this header. 
+                     // Often it's in the same container or just below.
+                     // We can try to click the header itself if it's a link, or look for a sibling "more"
+                     
+                     // Common Naver structure: Section -> Header ... Check valid ad link
+                     // Actually, if we find "파워링크", usually there is a "더보기" (More) link on the right.
+                     // Class names like `btn_more` or texts `더보기`
+                     
+                     // Let's traverse up to finding a container, then search down for "더보기"
+                     let container = targetHeader.parentElement;
+                     let moreBtn: HTMLElement | null = null;
+                     
+                     // Try going up 3 levels
+                     for(let i=0; i<3; i++) {
+                         if (!container) break;
+                         moreBtn = container.querySelector("a.btn_more, a.more, .more_btn") as HTMLElement;
+                         if (moreBtn && moreBtn.textContent?.includes("더보기")) break;
+                         
+                         // Also check by text
+                         const links = container.querySelectorAll("a, button");
+                         for(const l of links) {
+                             if(l.textContent?.trim() === "더보기" || l.textContent?.includes("광고 더보기")) {
+                                 moreBtn = l as HTMLElement;
+                                 break;
+                             }
+                         }
+                         if (moreBtn) break;
+                         
+                         container = container.parentElement;
+                     }
+                     
+                     if (moreBtn) {
+                         moreBtn.click();
+                         return true;
+                     }
+                 }
+                 return false;
+            }, keyword);
+            
+            if (successfulClick) {
+                console.log(`[Crawler] (Bypass) Found section and clicked 'More'.`);
+                foundSection = true;
+                await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 10000 }).catch(() => console.log("Navigation timeout or already handled"));
+            } else {
+                console.log(`[Crawler] (Bypass) Section not found yet, scrolling...`);
+            }
+            
+            attempts++;
+        }
+        
+        if (!foundSection) {
+             console.warn(`[Crawler] (Bypass) Could not find ad section after scrolling.`);
+        }
+        
+    } catch (e) {
+        console.error(`[Crawler] (Bypass) Failed:`, e);
+    }
 }
 
 export async function checkRanking(
