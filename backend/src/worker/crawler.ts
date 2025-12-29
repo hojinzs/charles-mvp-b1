@@ -89,7 +89,7 @@ export async function checkRanking(
     );
 
     // Wait for results to load
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 500));
     const rank = await page.evaluate((url: string) => {
       const items = document.querySelectorAll("li.list_item");
 

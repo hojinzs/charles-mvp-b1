@@ -66,26 +66,27 @@ services:
     #   timeout: 10s
     #   retries: 3
 
-  scheduler:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      SCEDULER_INTERVAL_MS: ${SCEDULER_INTERVAL_MS:-60000}
-      SCHEDULER_CRON: ${SCHEDULER_CRON:-"* * * * *"}
-    command: ["--process=scheduler"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
+  # Temponary Disabled
+  # scheduler:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL:-postgresql://crawler:crawler123@postgres:5432/crawler_db}
+  #     REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  #     SCEDULER_INTERVAL_MS: ${SCEDULER_INTERVAL_MS:-60000}
+  #     SCHEDULER_CRON: ${SCHEDULER_CRON:-"* * * * *"}
+  #   command: ["--process=scheduler"]
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   # healthcheck:
+  #   #   test: ["CMD", "curl", "-f", "http://localhost:3000/health || exit 1"]
+  #   #   interval: 30s
+  #   #   timeout: 10s
+  #   #   retries: 3
 
 volumes:
   postgres_data:
