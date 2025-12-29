@@ -55,7 +55,7 @@ graph TD
 
 ### 3.2 주요 기능
 1.  **키워드 관리**:
-    *   모니터링 대상 키워드 등록/수정/삭제.
+    *   모니터링 대상 키워드 등록/삭제 (키워드 및 URL 수정 불가, 태그/목표순위만 수정 가능).
     *   키워드별 타겟 URL 설정.
 2.  **모니터링 실행 제어**:
     *   수동 즉시 실행 및 스케줄링(Batch) 지원.
@@ -101,7 +101,7 @@ graph TD
 CREATE TABLE keywords (
   id SERIAL PRIMARY KEY,
   keyword VARCHAR(255) NOT NULL,
-  url TEXT NOT NULL,         -- 타겟 도메인 또는 랜딩 URL
+  url TEXT NOT NULL,         -- 타겟 도메인 또는 랜딩 URL (http/https만 허용, Protocol/www 제거하여 저장)
   last_rank INTEGER,         -- 가장 최근 확인된 순위 (캐싱용)
   last_checked_at TIMESTAMP, -- 최근 확인 시각
   is_active BOOLEAN DEFAULT true,

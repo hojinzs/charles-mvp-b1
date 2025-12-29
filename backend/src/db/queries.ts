@@ -1,24 +1,14 @@
 import { pool } from "./connection";
 
-/**
- * URL에서 프로토콜(예: http://, https://, ftp:// 등)을 제거합니다.
- */
-function removeProtocol(url: string): string {
-  // Remove any leading URL scheme (e.g., http://, https://, ftp://, ws://).
-  // If no scheme is present, the original string is returned unchanged.
-  return url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
-}
-
 export async function addKeyword(
   keyword: string,
   url: string,
   tags: string[] = [],
   targetRank?: number,
 ) {
-  const normalizedUrl = removeProtocol(url);
   const result = await pool.query(
     "INSERT INTO keywords (keyword, url, tags, target_rank) VALUES ($1, $2, $3, $4) RETURNING *",
-    [keyword, normalizedUrl, tags, targetRank],
+    [keyword, url, tags, targetRank],
   );
   return result.rows[0];
 }
@@ -30,10 +20,9 @@ export async function updateKeyword(
   tags: string[] = [],
   targetRank?: number,
 ) {
-  const normalizedUrl = removeProtocol(url);
   const result = await pool.query(
     "UPDATE keywords SET keyword = $1, url = $2, tags = $3, target_rank = $4 WHERE id = $5 RETURNING *",
-    [keyword, normalizedUrl, tags, targetRank, id],
+    [keyword, url, tags, targetRank, id],
   );
   return result.rows[0];
 }
@@ -202,10 +191,9 @@ export async function deleteKeyword(id: number) {
  * 키워드와 URL이 동일한 기존 레코드를 찾습니다.
  */
 export async function findKeywordByKeywordAndUrl(keyword: string, url: string) {
-  const normalizedUrl = removeProtocol(url);
   const result = await pool.query(
     "SELECT * FROM keywords WHERE keyword = $1 AND url = $2",
-    [keyword, normalizedUrl]
+    [keyword, url]
   );
   return result.rows[0];
 }
