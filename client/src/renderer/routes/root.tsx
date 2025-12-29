@@ -1,24 +1,21 @@
 import React from 'react';
 import { Outlet, Link, useRouter } from '@tanstack/react-router';
 import { useHealthCheck } from '../hooks/useHealthCheck';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { Wifi, WifiOff, LogOut, Globe } from 'lucide-react';
 
 export function RootLayout() {
   const router = useRouter();
-  const [backendUrl, setBackendUrl] = React.useState<string | null>(null);
+  const { backendUrl, clearBackendUrl } = useSettingsStore();
   
-  React.useEffect(() => {
-    window.electronAPI.getBackendUrl().then(url => {
-      setBackendUrl(url);
-    });
-  }, []);
+  // Removed local useEffect as data is now syncing via store
 
   const health = useHealthCheck(backendUrl);
 
   const handleDisconnect = async () => {
     if (window.confirm('서버 연결을 해제하시겠습니까? 세팅 화면으로 돌아갑니다.')) {
-      await window.electronAPI.disconnect();
-      window.location.href = '/';
+      clearBackendUrl();
+      // Navigation is handled by App.tsx observing the store
     }
   };
 

@@ -1,97 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { RouterProvider, createRouter, createRootRoute, createRoute } from '@tanstack/react-router';
+import { RouterProvider } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster, toast } from 'sonner';
-import { RootLayout } from './routes/root';
-import { MonitoringPage } from './routes/index';
-import { HistoryPage } from './routes/history';
-import { QueuePage } from './routes/queue';
+import { Toaster } from 'sonner';
+
+// Features
 import SetupScreen from './features/setup/SetupScreen';
 import { SocketListener } from './features/SocketListener';
 
-// 1. Create Route Tree
-const rootRoute = createRootRoute({
-  component: RootLayout,
-});
-
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  component: MonitoringPage,
-  validateSearch: (search: Record<string, unknown>): { page: number; limit: number; sortBy: string; order: 'asc' | 'desc'; search: string } => {
-    return {
-      page: Number(search.page) || 1,
-      limit: Math.min(Number(search.limit) || 100, 100),
-      sortBy: (search.sortBy as string) || 'created',
-      order: (search.order as 'asc' | 'desc') || 'desc',
-      search: (search.search as string) || '',
-    };
-  },
-});
-
-const historyRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/history',
-  component: HistoryPage,
-});
-
-const queueRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/queue',
-  component: QueuePage,
-});
-
-const routeTree = rootRoute.addChildren([indexRoute, historyRoute, queueRoute]);
-
-// 2. Create Router
-const router = createRouter({ routeTree });
-
-// 3. Register Reference
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router;
-  }
-}
-
-import { initApi, apiClient } from './lib/api';
-
-// ... (imports remain)
+// Lib & Store
+import { initApi } from './lib/api';
+import { useSettingsStore } from './store/useSettingsStore';
+import { router } from './router';
 
 const queryClient = new QueryClient();
 
 function App() {
-  const [isReady, setIsReady] = useState(false);
-  const [backendUrl, setBackendUrl] = useState<string | null>(null);
+  const { backendUrl } = useSettingsStore();
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // API initialization and Backend URL management
+  // 1. Hydration Check
   useEffect(() => {
-    checkBackend();
+     if (useSettingsStore.persist.hasHydrated()) {
+       setIsHydrated(true);
+     }
+     
+     const unsub = useSettingsStore.persist.onFinishHydration(() => {
+       setIsHydrated(true);
+     });
+
+     return () => {
+       unsub();
+     };
   }, []);
 
+  // 2. API Initialization
   useEffect(() => {
     if (backendUrl) {
       initApi(backendUrl);
     }
   }, [backendUrl]);
 
-  const checkBackend = async () => {
-    try {
-      const url = await window.electronAPI.getBackendUrl();
-      if (url && url.length > 0) {
-        setBackendUrl(url);
-        initApi(url);
-      } else {
-        setBackendUrl(null);
-      }
-    } catch (e) {
-      console.error('Failed to get backend URL', e);
-      setBackendUrl(null);
-    } finally {
-      setIsReady(true);
-    }
-  };
-
-  if (!isReady) {
+  // 3. Render Logic
+  if (!isHydrated) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 

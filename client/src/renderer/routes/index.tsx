@@ -368,7 +368,33 @@ export function MonitoringPage() {
                   />
                 </td>
                 <td className="p-5 font-medium text-gray-900">
-                    <div>{k.keyword}</div>
+                    <div className="flex items-center gap-2 group">
+                        <span 
+                            onClick={() => {
+                                const url = `https://m.search.naver.com/search.naver?query=${encodeURIComponent(k.keyword)}`;
+                                window.open(url, '_blank', 'width=375,height=812,scrollbars=yes,resizable=yes');
+                            }}
+                            className="cursor-pointer hover:text-blue-600 hover:underline decoration-blue-600 decoration-2 underline-offset-2 transition-colors relative"
+                            title="Click to view mobile search results"
+                        >
+                            {k.keyword}
+                        </span>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `https://m.search.naver.com/search.naver?query=${encodeURIComponent(k.keyword)}`;
+                                window.open(url, '_blank');
+                            }}
+                            className="text-gray-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Open in new tab"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                        </button>
+                    </div>
                     {k.tags && k.tags.length > 0 && (
                         <div className="flex gap-1 mt-1">
                             {k.tags.map((tag: any, i: number) => (
