@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { chunk } from 'lodash';
 
 
 let api: AxiosInstance | null = null;
@@ -61,13 +62,40 @@ export const apiClient = {
     handleResponse(getApi().get('/api/keywords', { params })),
   addKeyword: (keyword: string, url: string, tags?: string[], targetRank?: number) => handleResponse(getApi().post('/api/keywords', { keyword, url, tags, targetRank })),
   updateKeyword: (id: number, data: { keyword: string; url: string; tags?: string[]; targetRank?: number }) => handleResponse(getApi().put(`/api/keywords/${id}`, data)),
-  addKeywordsBulk: (items: {keyword: string; url: string; tags?: string[]; targetRank?: number}[]) => {
-      // The previous implementation did Promise.all on the client (main process).
-      // Ideally the backend should support bulk insert. 
-      // If backend doesn't support bulk, we simulate it here to match previous behavior.
-      // Looking at main/index.ts, it was doing Promise.all([backendRequest...])
-      // So we will do the same here for now.
-      return Promise.all(items.map(item => handleResponse(getApi().post('/api/keywords', item))));
+  addKeywordsBulk: async (items: {keyword: string; url: string; tags?: string[]; targetRank?: number}[]) => {
+      // Chunk items into batches of 100 to avoid overwhelming the server
+      const batches = chunk(items, 100);
+      const allResults: any[] = [];
+      
+      for (const batch of batches) {
+         // Process each batch
+         const batchResults = await Promise.allSettled(
+           batch.map(item => handleResponse(getApi().post('/api/keywords', item)).then(res => ({ ...res, _item: item })))
+         );
+         
+         // Map results to include original item for error tracking
+         const mappedResults = batchResults.map((result, index) => {
+            if (result.status === 'fulfilled') {
+              return { status: 'fulfilled', value: result.value, item: batch[index] };
+            } else {
+              // Extract error message
+              const reason = result.reason?.message || result.reason || "Unknown error";
+              return { status: 'rejected', reason, item: batch[index] };
+            }
+         });
+         
+         allResults.push(...mappedResults);
+      }
+
+      // Calculate stats
+      const total = allResults.length;
+      const success = allResults.filter(r => r.status === 'fulfilled').length;
+      const failed = total - success;
+
+      return {
+        results: allResults,
+        stats: { total, success, failed }
+      };
   },
   deleteKeywords: (ids: number[]) => {
       // Similarly, main/index.ts did Promise.all for deletes.
