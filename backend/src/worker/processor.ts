@@ -27,8 +27,8 @@ export const startProcessor = () => {
       await job.progress(10);
 
       // Execute Crawling
-      const { rank, method } = await checkRanking(keyword, targetUrl);
-      
+      const { rank, method, networkStats } = await checkRanking(keyword, targetUrl);
+
       const processingEndTime = Date.now();
       const crawlingDuration = processingEndTime - processingStartTime;
       const totalDuration = processingEndTime - job.timestamp; // job.timestamp is enqueue time
@@ -36,20 +36,25 @@ export const startProcessor = () => {
       // Record Metrics
       jobDurationHistogram.observe({ phase: "processing" }, crawlingDuration / 1000);
       jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
-      jobsCompletedCounter.inc({ status: "success", method: method });
 
-      await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms`);
+
+      await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms, Network: ${networkStats.totalSize}KB`);
       await job.progress(80);
 
       // Save Result to DB
       await saveRanking(
-        keywordId, 
-        rank, 
-        new Date(job.timestamp), 
-        crawlingDuration, 
-        totalDuration, 
-        method
+        keywordId,
+        rank,
+        new Date(job.timestamp),
+        crawlingDuration,
+        totalDuration,
+        method,
+        networkStats.requestSize,
+        networkStats.responseSize,
+        networkStats.totalSize
       );
+
+      jobsCompletedCounter.inc({ status: "success", method: method });
 
       await job.progress(100);
 

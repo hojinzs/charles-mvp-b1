@@ -2,15 +2,47 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { Browser } from "puppeteer";
+import { Browser, HTTPRequest, HTTPResponse } from "puppeteer";
 import { createCursor } from "ghost-cursor";
 import { ProxyManager } from "./proxy-manager";
+import { networkBytesHistogram, networkBytesCounter } from "../metrics";
+
+export interface NetworkStats {
+  requestSize: number;  // in KB
+  responseSize: number; // in KB
+  totalSize: number;    // in KB
+}
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
 
 let browserInstance: Browser | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
+
+function calculateHeaderSize(headers: Record<string, string | string[]>): number {
+  let size = 0;
+  for (const [key, value] of Object.entries(headers)) {
+    // Header line: "Key: Value\r\n"
+    // We append current key length + ": " (2 bytes)
+    size += key.length + 2;
+    
+    if (Array.isArray(value)) {
+        for (const v of value) {
+             size += v.length;
+             // If multiple values, they are usually comma separated or separate lines
+             // Simplification: just add value length + ", " or similar overhead?
+             // HTTP spec says usually separate headers or comma separated.
+             // Let's assume standard "Key: Val1, Val2\r\n" or multiple lines.
+             // Safe approximation: value length.
+        }
+    } else if (typeof value === 'string') {
+        size += value.length;
+    }
+    // CRLF
+    size += 2; 
+  }
+  return size;
+}
 
 async function getBrowser(): Promise<Browser> {
   if (browserInstance && browserInstance.isConnected()) {
@@ -67,7 +99,7 @@ async function getBrowser(): Promise<Browser> {
 async function checkRankingViaAxios(
   keyword: string,
   targetUrl: string,
-): Promise<number | null> {
+): Promise<{ rank: number | null; networkStats: NetworkStats }> {
   try {
     const proxyManager = ProxyManager.getInstance();
     const proxyConfig = proxyManager.getProxyServer();
@@ -107,6 +139,35 @@ async function checkRankingViaAxios(
     console.log(`[Crawler] (Axios) Checking ${keyword}...`);
     const response = await axios.get(searchUrl, axiosConfig);
 
+    // Calculate network sizes in bytes
+    const responseBodySizeBytes = Buffer.byteLength(response.data, 'utf8');
+    const responseHeaderSizeBytes = calculateHeaderSize(response.headers as Record<string, string | string[]>);
+    const responseTotalSizeBytes = responseBodySizeBytes + responseHeaderSizeBytes;
+
+    // Request size (headers + URL + method overhead approx)
+    // Axios request headers are in axiosConfig.headers (merged with defaults by axios, but we only have access to what we passed + some defaults)
+    // We'll estimate based on what we have + URL.
+    const requestHeaderSizeBytes = calculateHeaderSize(response.config.headers as unknown as Record<string, string | string[]> || axiosConfig.headers);
+    // Request line: "GET /path HTTP/1.1\r\n" -> Approx method length + URL length + protocol length + 4
+    const requestLineOverhead = 3 + searchUrl.length + 8 + 4; // "GET" + url + "HTTP/1.1" + spaces/CRLF
+    const requestTotalSizeBytes = requestHeaderSizeBytes + requestLineOverhead;
+
+    const totalNetworkSizeBytes = requestTotalSizeBytes + responseTotalSizeBytes;
+
+    // Record metrics in bytes (Prometheus standard)
+    networkBytesHistogram.observe({ method: 'axios', direction: 'request' }, requestTotalSizeBytes);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'response' }, responseTotalSizeBytes);
+    networkBytesHistogram.observe({ method: 'axios', direction: 'total' }, totalNetworkSizeBytes);
+    networkBytesCounter.inc({ method: 'axios' }, totalNetworkSizeBytes);
+
+    // Convert to KB for storage (Round to integer for DB compatibility)
+    // Ensure Consistency: Total = Request + Response
+    const requestKb = Math.round(requestTotalSizeBytes / 1024);
+    const responseKb = Math.round(responseTotalSizeBytes / 1024);
+    const totalKb = requestKb + responseKb; 
+
+    console.log(`[Crawler] (Axios) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
+
     const $ = cheerio.load(response.data);
     const items = $("li.list_item");
     let rank = null;
@@ -127,17 +188,32 @@ async function checkRankingViaAxios(
       console.log(`[Crawler] (Axios) Not found or valid result.`);
     }
 
-    return rank;
+    return {
+      rank,
+      networkStats: {
+        requestSize: requestKb,
+        responseSize: responseKb,
+        totalSize: totalKb
+      }
+    };
   } catch (error) {
     console.warn(`[Crawler] (Axios) Failed: ${error}`);
-    return null; // Fallback to puppeteer
+    // Return null rank with zero network stats on error
+    return {
+      rank: null,
+      networkStats: {
+        requestSize: 0,
+        responseSize: 0,
+        totalSize: 0
+      }
+    };
   }
 }
 
 async function checkRankingViaPuppeteer(
   keyword: string,
   targetUrl: string,
-): Promise<number | null> {
+): Promise<{ rank: number | null; networkStats: NetworkStats }> {
   let context: any = null;
   let page: any = null;
 
@@ -147,6 +223,64 @@ async function checkRankingViaPuppeteer(
     // Create isolated context for this job
     context = await browser.createIncognitoBrowserContext();
     page = await context.newPage();
+
+    // Network monitoring setup
+    let totalRequestSize = 0;
+    let totalResponseSize = 0;
+    
+    // Tracker for pending requests to handle race conditions
+    let pendingRequests = 0;
+    const pendingRequestSet = new Set<string>();
+
+    page.on('request', (request: HTTPRequest) => {
+      pendingRequests++;
+      pendingRequestSet.add(request.url());
+
+      const headers = request.headers();
+      const headerSize = calculateHeaderSize(headers);
+      const urlSize = request.url().length;
+      
+      // Include body size
+      const postData = request.postData();
+      const bodySize = postData ? Buffer.byteLength(postData) : 0;
+      
+      // Method space protocol CRLF... approx 10-15 bytes
+      const methodSize = request.method().length + 10; 
+
+      totalRequestSize += headerSize + urlSize + bodySize + methodSize;
+    });
+
+    const handleRequestFinished = (request: HTTPRequest) => {
+        pendingRequests = Math.max(0, pendingRequests - 1);
+        pendingRequestSet.delete(request.url());
+    };
+
+    page.on('requestfinished', handleRequestFinished);
+    page.on('requestfailed', handleRequestFinished);
+
+    page.on('response', async (response: HTTPResponse) => {
+      try {
+        const headers = response.headers();
+        const headerSize = calculateHeaderSize(headers);
+        let bodySize = 0;
+        try {
+            const buffer = await response.buffer();
+            bodySize = buffer.length;
+        } catch (e) {
+            // response.buffer() fails for redirects (302) or if connection closed. 
+            // We can try to use 'content-length' header if buffer fails.
+            const contentLength = headers['content-length'];
+            if (contentLength) {
+                bodySize = parseInt(contentLength, 10) || 0;
+            }
+        }
+        
+        // Status line approx "HTTP/1.1 200 OK\r\n" -> ~15 bytes
+        totalResponseSize += headerSize + bodySize + 15;
+      } catch (e) {
+        // Ignore
+      }
+    });
 
     // Authenticate with Proxy (if configured)
     const proxyManager = ProxyManager.getInstance();
@@ -182,6 +316,12 @@ async function checkRankingViaPuppeteer(
       { waitUntil: "networkidle2", timeout: 30000 },
     );
 
+    // Wait for critical pending requests to settle (Race condition fix)
+    // We wait a bit to ensure all traffic from the load is captured
+    try {
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 2000 }).catch(() => {});
+    } catch (e) { /* ignore */ }
+
     // Check if we got results directly
     let items = await page.$$("li.list_item"); // use element handles to check count
     
@@ -191,6 +331,11 @@ async function checkRankingViaPuppeteer(
         await navigateWithBypass(page, keyword, cursor);
         // Re-query items after bypass navigation
         items = await page.$$("li.list_item");
+        
+        // Wait again after interaction
+         try {
+            await page.waitForNetworkIdle({ idleTime: 500, timeout: 2000 }).catch(() => {});
+        } catch (e) { /* ignore */ }
     }
 
     // Use page.evaluate to parse the final page state
@@ -211,7 +356,31 @@ async function checkRankingViaPuppeteer(
     }, targetUrl);
 
     console.log(`[Crawler] (Puppeteer) Rank for "${keyword}": ${rank}`);
-    return rank;
+
+    // Calculate total network size and record metrics in bytes
+    const totalNetworkSizeBytes = totalRequestSize + totalResponseSize;
+
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'request' }, totalRequestSize);
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'response' }, totalResponseSize);
+    networkBytesHistogram.observe({ method: 'puppeteer', direction: 'total' }, totalNetworkSizeBytes);
+    networkBytesCounter.inc({ method: 'puppeteer' }, totalNetworkSizeBytes);
+
+    // Convert to KB for storage (Round to integer)
+    // Consistency: Total = Req + Res
+    const requestKb = Math.round(totalRequestSize / 1024);
+    const responseKb = Math.round(totalResponseSize / 1024);
+    const totalKb = requestKb + responseKb;
+
+    console.log(`[Crawler] (Puppeteer) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
+
+    return {
+      rank,
+      networkStats: {
+        requestSize: requestKb,
+        responseSize: responseKb,
+        totalSize: totalKb
+      }
+    };
   } catch (e) {
     console.error(`Error crawling keyword "${keyword}" with Puppeteer:`, e);
 
@@ -365,17 +534,25 @@ async function navigateWithBypass(page: any, keyword: string, cursor: any) {
 export async function checkRanking(
   keyword: string,
   targetUrl: string,
-): Promise<{ rank: number | null; method: "axios" | "puppeteer" }> {
+): Promise<{ rank: number | null; method: "axios" | "puppeteer"; networkStats: NetworkStats }> {
   // 1. Try Axios (Fast)
   const axiosResult = await checkRankingViaAxios(keyword, targetUrl);
-  if (axiosResult !== null) {
-    return { rank: axiosResult, method: "axios" };
+  if (axiosResult.rank !== null) {
+    return {
+      rank: axiosResult.rank,
+      method: "axios",
+      networkStats: axiosResult.networkStats
+    };
   }
 
   // 2. Fallback to Puppeteer (Slow, stealth)
   console.log(
     `[Crawler] Axios failed or found nothing for "${keyword}". Falling back to Puppeteer...`,
   );
-  const puppeteerRank = await checkRankingViaPuppeteer(keyword, targetUrl);
-  return { rank: puppeteerRank, method: "puppeteer" };
+  const puppeteerResult = await checkRankingViaPuppeteer(keyword, targetUrl);
+  return {
+    rank: puppeteerResult.rank,
+    method: "puppeteer",
+    networkStats: puppeteerResult.networkStats
+  };
 }
