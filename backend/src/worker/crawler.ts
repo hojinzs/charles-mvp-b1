@@ -2,7 +2,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { Browser } from "puppeteer";
+import { Browser, HTTPRequest, HTTPResponse } from "puppeteer";
 import { createCursor } from "ghost-cursor";
 import { ProxyManager } from "./proxy-manager";
 import { networkBytesHistogram, networkBytesCounter } from "../metrics";
@@ -18,6 +18,31 @@ puppeteer.use(StealthPlugin());
 
 let browserInstance: Browser | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
+
+function calculateHeaderSize(headers: Record<string, string | string[]>): number {
+  let size = 0;
+  for (const [key, value] of Object.entries(headers)) {
+    // Header line: "Key: Value\r\n"
+    // We append current key length + ": " (2 bytes)
+    size += key.length + 2;
+    
+    if (Array.isArray(value)) {
+        for (const v of value) {
+             size += v.length;
+             // If multiple values, they are usually comma separated or separate lines
+             // Simplification: just add value length + ", " or similar overhead?
+             // HTTP spec says usually separate headers or comma separated.
+             // Let's assume standard "Key: Val1, Val2\r\n" or multiple lines.
+             // Safe approximation: value length.
+        }
+    } else if (typeof value === 'string') {
+        size += value.length;
+    }
+    // CRLF
+    size += 2; 
+  }
+  return size;
+}
 
 async function getBrowser(): Promise<Browser> {
   if (browserInstance && browserInstance.isConnected()) {
@@ -116,11 +141,16 @@ async function checkRankingViaAxios(
 
     // Calculate network sizes in bytes
     const responseBodySizeBytes = Buffer.byteLength(response.data, 'utf8');
-    const responseHeaderSizeBytes = JSON.stringify(response.headers).length;
+    const responseHeaderSizeBytes = calculateHeaderSize(response.headers as Record<string, string | string[]>);
     const responseTotalSizeBytes = responseBodySizeBytes + responseHeaderSizeBytes;
 
-    const requestHeaderSizeBytes = JSON.stringify(axiosConfig.headers || {}).length;
-    const requestTotalSizeBytes = requestHeaderSizeBytes + searchUrl.length;
+    // Request size (headers + URL + method overhead approx)
+    // Axios request headers are in axiosConfig.headers (merged with defaults by axios, but we only have access to what we passed + some defaults)
+    // We'll estimate based on what we have + URL.
+    const requestHeaderSizeBytes = calculateHeaderSize(response.config.headers as unknown as Record<string, string | string[]> || axiosConfig.headers);
+    // Request line: "GET /path HTTP/1.1\r\n" -> Approx method length + URL length + protocol length + 4
+    const requestLineOverhead = 3 + searchUrl.length + 8 + 4; // "GET" + url + "HTTP/1.1" + spaces/CRLF
+    const requestTotalSizeBytes = requestHeaderSizeBytes + requestLineOverhead;
 
     const totalNetworkSizeBytes = requestTotalSizeBytes + responseTotalSizeBytes;
 
@@ -130,10 +160,11 @@ async function checkRankingViaAxios(
     networkBytesHistogram.observe({ method: 'axios', direction: 'total' }, totalNetworkSizeBytes);
     networkBytesCounter.inc({ method: 'axios' }, totalNetworkSizeBytes);
 
-    // Convert to KB for storage
+    // Convert to KB for storage (Round to integer for DB compatibility)
+    // Ensure Consistency: Total = Request + Response
     const requestKb = Math.round(requestTotalSizeBytes / 1024);
     const responseKb = Math.round(responseTotalSizeBytes / 1024);
-    const totalKb = Math.round(totalNetworkSizeBytes / 1024);
+    const totalKb = requestKb + responseKb; 
 
     console.log(`[Crawler] (Axios) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
 
@@ -196,23 +227,58 @@ async function checkRankingViaPuppeteer(
     // Network monitoring setup
     let totalRequestSize = 0;
     let totalResponseSize = 0;
+    
+    // Tracker for pending requests to handle race conditions
+    let pendingRequests = 0;
+    const pendingRequestSet = new Set<string>();
 
-    page.on('request', (request: any) => {
+    page.on('request', (request: HTTPRequest) => {
+      pendingRequests++;
+      pendingRequestSet.add(request.url());
+
       const headers = request.headers();
-      const headerSize = JSON.stringify(headers).length;
+      const headerSize = calculateHeaderSize(headers);
       const urlSize = request.url().length;
-      totalRequestSize += headerSize + urlSize;
+      
+      // Include body size
+      const postData = request.postData();
+      const bodySize = postData ? Buffer.byteLength(postData) : 0;
+      
+      // Method space protocol CRLF... approx 10-15 bytes
+      const methodSize = request.method().length + 10; 
+
+      totalRequestSize += headerSize + urlSize + bodySize + methodSize;
     });
 
-    page.on('response', async (response: any) => {
+    const handleRequestFinished = (request: HTTPRequest) => {
+        pendingRequests = Math.max(0, pendingRequests - 1);
+        pendingRequestSet.delete(request.url());
+    };
+
+    page.on('requestfinished', handleRequestFinished);
+    page.on('requestfailed', handleRequestFinished);
+
+    page.on('response', async (response: HTTPResponse) => {
       try {
-        const buffer = await response.buffer();
-        const bodySize = buffer.length;
         const headers = response.headers();
-        const headerSize = JSON.stringify(headers).length;
-        totalResponseSize += bodySize + headerSize;
+        const headerSize = calculateHeaderSize(headers);
+        let bodySize = 0;
+        try {
+            const buffer = await response.buffer();
+            bodySize = buffer.length;
+        } catch (e) {
+            // response.buffer() fails for redirects (302) or if connection closed. 
+            // We can try to use 'content-length' header if buffer fails.
+            const contentLength = headers['content-length'];
+            if (contentLength) {
+                bodySize = parseInt(contentLength, 10) || 0;
+            }
+        }
+        
+        // Status line approx "HTTP/1.1 200 OK\r\n" -> ~15 bytes
+        totalResponseSize += headerSize + bodySize + 15;
       } catch (e) {
-        // Some responses may not support buffer()
+        // Ignore
       }
     });
 
@@ -250,6 +316,12 @@ async function checkRankingViaPuppeteer(
       { waitUntil: "networkidle2", timeout: 30000 },
     );
 
+    // Wait for critical pending requests to settle (Race condition fix)
+    // We wait a bit to ensure all traffic from the load is captured
+    try {
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 2000 }).catch(() => {});
+    } catch (e) { /* ignore */ }
+
     // Check if we got results directly
     let items = await page.$$("li.list_item"); // use element handles to check count
     
@@ -259,6 +331,11 @@ async function checkRankingViaPuppeteer(
         await navigateWithBypass(page, keyword, cursor);
         // Re-query items after bypass navigation
         items = await page.$$("li.list_item");
+        
+        // Wait again after interaction
+         try {
+            await page.waitForNetworkIdle({ idleTime: 500, timeout: 2000 }).catch(() => {});
+        } catch (e) { /* ignore */ }
     }
 
     // Use page.evaluate to parse the final page state
@@ -288,10 +365,11 @@ async function checkRankingViaPuppeteer(
     networkBytesHistogram.observe({ method: 'puppeteer', direction: 'total' }, totalNetworkSizeBytes);
     networkBytesCounter.inc({ method: 'puppeteer' }, totalNetworkSizeBytes);
 
-    // Convert to KB for storage
+    // Convert to KB for storage (Round to integer)
+    // Consistency: Total = Req + Res
     const requestKb = Math.round(totalRequestSize / 1024);
     const responseKb = Math.round(totalResponseSize / 1024);
-    const totalKb = Math.round(totalNetworkSizeBytes / 1024);
+    const totalKb = requestKb + responseKb;
 
     console.log(`[Crawler] (Puppeteer) Network stats - Request: ${requestKb}KB, Response: ${responseKb}KB, Total: ${totalKb}KB`);
 
