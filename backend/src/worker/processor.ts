@@ -36,7 +36,7 @@ export const startProcessor = () => {
       // Record Metrics
       jobDurationHistogram.observe({ phase: "processing" }, crawlingDuration / 1000);
       jobDurationHistogram.observe({ phase: "total" }, totalDuration / 1000);
-      jobsCompletedCounter.inc({ status: "success", method: method });
+
 
       await job.log(`Crawling completed. Method: ${method}, Rank: ${rank}, Duration: ${crawlingDuration}ms, Network: ${networkStats.totalSize}KB`);
       await job.progress(80);
@@ -53,6 +53,8 @@ export const startProcessor = () => {
         networkStats.responseSize,
         networkStats.totalSize
       );
+
+      jobsCompletedCounter.inc({ status: "success", method: method });
 
       await job.progress(100);
 
