@@ -3,6 +3,7 @@ import { RootLayout } from './routes/root';
 import { MonitoringPage } from './routes/index';
 import { HistoryPage } from './routes/history';
 import { QueuePage } from './routes/queue';
+import { SystemPage } from './routes/system';
 
 // 1. Create Route Tree
 const rootRoute = createRootRoute({
@@ -36,7 +37,13 @@ const queueRoute = createRoute({
   component: QueuePage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, historyRoute, queueRoute]);
+const systemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/system',
+  component: SystemPage,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, historyRoute, queueRoute, systemRoute]);
 
 // 2. Create Router
 export const router = createRouter({ routeTree });

@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Link, useRouter } from '@tanstack/react-router';
 import { useHealthCheck } from '../hooks/useHealthCheck';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Wifi, WifiOff, LogOut, Globe, LayoutDashboard, History, List } from 'lucide-react';
+import { Wifi, WifiOff, LogOut, Globe, LayoutDashboard, History, List, Settings } from 'lucide-react';
 
 export function RootLayout() {
   const router = useRouter();
@@ -63,6 +63,17 @@ export function RootLayout() {
             <List size={18} />
             작업 대기열
           </Link>
+          
+          <div className="pt-4 mt-2 border-t border-gray-100">
+            <Link 
+              to="/system" 
+              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-rose-600 transition-colors"
+              activeProps={{ className: "bg-rose-50 text-rose-600" }}
+            >
+              <Settings size={18} />
+              시스템 설정
+            </Link>
+          </div>
         </nav>
 
         {/* Connection Status & User Info */}

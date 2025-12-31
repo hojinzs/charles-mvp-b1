@@ -220,3 +220,26 @@ export async function findKeywordByKeywordAndUrl(keyword: string, url: string) {
   );
   return result.rows[0];
 }
+
+/**
+ * 시스템 데이터를 모두 초기화합니다 (키워드, 랭킹, 히스토리 등).
+ * 주의: 이 작업은 되돌릴 수 없습니다.
+ */
+export async function resetSystemData() {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // keyword_rankings는 keywords에 CASCADE 설정이 되어 있을 수 있지만, 
+    // 명시적으로 지워주는 것이 안전함.
+    await client.query("TRUNCATE TABLE keyword_rankings");
+    await client.query("TRUNCATE TABLE keywords CASCADE");
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
