@@ -2,7 +2,7 @@ import { IStorageAdapter } from '../../adapters/StorageAdapter';
 
 /**
  * Electron Storage Adapter
- * Uses Electron IPC for backend_url and localStorage for other data
+ * Uses Electron IPC for backend_url and strict isolation (no localStorage).
  */
 export class ElectronStorageAdapter implements IStorageAdapter {
   async get<T>(key: string): Promise<T | null> {
@@ -17,9 +17,8 @@ export class ElectronStorageAdapter implements IStorageAdapter {
       }
     }
 
-    // Other settings fall back to localStorage
-    const value = localStorage.getItem(key);
-    return value ? (JSON.parse(value) as T) : null;
+    // Explicitly return null for unsupported keys to avoid silent localStorage usage
+    return null;
   }
 
   async set<T>(key: string, value: T): Promise<void> {
@@ -34,8 +33,7 @@ export class ElectronStorageAdapter implements IStorageAdapter {
       return;
     }
 
-    // Other settings fall back to localStorage
-    localStorage.setItem(key, JSON.stringify(value));
+    console.warn(`ElectronStorageAdapter: Set operation ignored for unsupported key '${key}'`);
   }
 
   async remove(key: string): Promise<void> {
@@ -50,16 +48,15 @@ export class ElectronStorageAdapter implements IStorageAdapter {
       return;
     }
 
-    // Other settings fall back to localStorage
-    localStorage.removeItem(key);
+    console.warn(`ElectronStorageAdapter: Remove operation ignored for unsupported key '${key}'`);
   }
 
   async clear(): Promise<void> {
     try {
       await window.electronAPI.disconnect();
     } catch (error) {
-      console.error('Failed to disconnect in Electron:', error);
+      console.error('Failed to disconnect in Electron during clear:', error);
+      throw error;
     }
-    localStorage.clear();
   }
 }

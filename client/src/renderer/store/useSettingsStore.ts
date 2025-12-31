@@ -12,62 +12,59 @@ interface SettingsState {
  * Platform-agnostic storage for Zustand
  * Uses Electron IPC in Electron, localStorage in Web
  */
+import { IStorageAdapter } from '../platform/adapters/StorageAdapter';
+import { ElectronStorageAdapter } from '../platform/implementations/electron/ElectronStorageAdapter';
+import { WebStorageAdapter } from '../platform/implementations/web/WebStorageAdapter';
+
+/**
+ * Platform-agnostic storage for Zustand
+ * Uses Electron IPC in Electron, localStorage in Web via adapters
+ */
 function createPlatformStorage(): StateStorage {
   const runtime = detectRuntime();
+  const adapter: IStorageAdapter = runtime === 'electron' 
+    ? new ElectronStorageAdapter() 
+    : new WebStorageAdapter();
 
-  if (runtime === 'electron') {
-    // Electron: Use window.electronAPI
-    return {
-      getItem: async (name: string): Promise<string | null> => {
-        try {
-          const url = await window.electronAPI.getBackendUrl();
-          if (!url) return null;
-          return JSON.stringify({
-            state: { backendUrl: url },
-            version: 0,
-          });
-        } catch (e) {
-          console.error('Failed to get backend URL from electron store', e);
-          return null;
+  return {
+    getItem: async (name: string): Promise<string | null> => {
+      // We map the entire settings store to 'backend_url' key for now
+      // as that's the only setting we persist via IPC in Electron
+      try {
+        const url = await adapter.get<string>('backend_url');
+        if (!url) return null;
+        return JSON.stringify({
+          state: { backendUrl: url },
+          version: 0,
+        });
+      } catch (e) {
+        console.error('Failed to get backend URL from storage adapter', e);
+        return null;
+      }
+    },
+    setItem: async (name: string, value: string): Promise<void> => {
+      try {
+        const parsed = JSON.parse(value);
+        const url = parsed.state?.backendUrl;
+        console.log('[Zustand] Persisting backendUrl:', url);
+        
+        if (url) {
+          await adapter.set('backend_url', url);
+        } else {
+          await adapter.remove('backend_url');
         }
-      },
-      setItem: async (name: string, value: string): Promise<void> => {
-        try {
-          const parsed = JSON.parse(value);
-          const url = parsed.state.backendUrl;
-          console.log('[Zustand] Persisting backendUrl:', url);
-          if (url) {
-            await window.electronAPI.setBackendUrl(url);
-          } else {
-            await window.electronAPI.disconnect();
-          }
-        } catch (e) {
-          console.error('Failed to set backend URL to electron store', e);
-        }
-      },
-      removeItem: async (name: string): Promise<void> => {
-        try {
-          await window.electronAPI.disconnect();
-        } catch (e) {
-          console.error('Failed to remove backend URL from electron store', e);
-        }
-      },
-    };
-  } else {
-    // Web: Use localStorage
-    return {
-      getItem: async (name: string): Promise<string | null> => {
-        const value = localStorage.getItem(name);
-        return value;
-      },
-      setItem: async (name: string, value: string): Promise<void> => {
-        localStorage.setItem(name, value);
-      },
-      removeItem: async (name: string): Promise<void> => {
-        localStorage.removeItem(name);
-      },
-    };
-  }
+      } catch (e) {
+        console.error('Failed to set backend URL to storage adapter', e);
+      }
+    },
+    removeItem: async (name: string): Promise<void> => {
+      try {
+        await adapter.remove('backend_url');
+      } catch (e) {
+        console.error('Failed to remove backend URL from storage adapter', e);
+      }
+    },
+  };
 }
 
 export const useSettingsStore = create<SettingsState>()(
