@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
+import { usePlatform } from '../platform';
 
 interface SocketListenerProps {
   backendUrl: string;
 }
 
 export function SocketListener({ backendUrl }: SocketListenerProps) {
+  const { notification } = usePlatform();
   useEffect(() => {
     if (!backendUrl) return;
 
@@ -30,28 +32,18 @@ export function SocketListener({ backendUrl }: SocketListenerProps) {
         description: `키워드 ID: ${data.keywordId} | 현재: ${data.rank}위 (목표: ${data.targetRank}위)`
       });
 
-      // 2. Show System Notification (if window hidden or just always)
-      // We'll invoke the main process handler
-      if (window.electronAPI && window.electronAPI.showNotification) {
-          await window.electronAPI.showNotification({ title, body });
-      } else {
-          // Fallback: Web Notification API (might work if permissions granted)
-          if (Notification.permission === 'granted') {
-             new Notification(title, { body });
-          } else if (Notification.permission !== 'denied') {
-             Notification.requestPermission().then(permission => {
-               if (permission === 'granted') {
-                 new Notification(title, { body });
-               }
-             });
-          }
+      // 2. Show System Notification (platform-agnostic)
+      try {
+        await notification.show(title, body);
+      } catch (error) {
+        console.error('Failed to show notification:', error);
       }
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [backendUrl]);
+  }, [backendUrl, notification]);
 
   return null; // This component doesn't render anything
 }
