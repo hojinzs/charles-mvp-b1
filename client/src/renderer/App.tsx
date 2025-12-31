@@ -3,6 +3,9 @@ import { RouterProvider } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 
+// Platform
+import { PlatformProvider } from './platform';
+
 // Features
 import SetupScreen from './features/setup/SetupScreen';
 import { SocketListener } from './features/SocketListener';
@@ -46,15 +49,21 @@ function App() {
   }
 
   if (!backendUrl) {
-    return <SetupScreen />;
+    return (
+      <PlatformProvider>
+        <SetupScreen />
+      </PlatformProvider>
+    );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SocketListener backendUrl={backendUrl} />
-      <RouterProvider router={router} />
-      <Toaster position="top-right" richColors />
-    </QueryClientProvider>
+    <PlatformProvider>
+      <QueryClientProvider client={queryClient}>
+        <SocketListener backendUrl={backendUrl} />
+        <RouterProvider router={router} />
+        <Toaster position="top-right" richColors />
+      </QueryClientProvider>
+    </PlatformProvider>
   );
 }
 
