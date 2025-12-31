@@ -9,6 +9,7 @@
     "dev:electron": "tsc src/main/index.ts src/main/preload.ts --outDir dist/main --esModuleInterop --skipLibCheck && electron dist/main/index.js --dev",
     "verify-crawler": "tsc src/main/verify-crawler.ts --outDir dist/main --esModuleInterop --skipLibCheck && electron dist/main/verify-crawler.js",
     "build": "tsc && vite build && electron-builder",
+    "build:web": "tsc && vite build",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
