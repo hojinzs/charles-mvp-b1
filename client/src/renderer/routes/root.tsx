@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Link, useRouter } from '@tanstack/react-router';
 import { useHealthCheck } from '../hooks/useHealthCheck';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Wifi, WifiOff, LogOut, Globe, LayoutDashboard, History, List, Settings } from 'lucide-react';
+import { Wifi, WifiOff, LogOut, Globe, LayoutDashboard, History, List, Settings, FileSpreadsheet } from 'lucide-react';
 
 export function RootLayout() {
   const router = useRouter();
@@ -38,8 +38,8 @@ export function RootLayout() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             search={{ page: 1, limit: 100, sortBy: 'created', order: 'desc', search: '' }}
             className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors"
             activeProps={{ className: "bg-blue-50 text-blue-600" }}
@@ -47,26 +47,35 @@ export function RootLayout() {
             <LayoutDashboard size={18} />
             모니터링
           </Link>
-          <Link 
-            to="/history" 
+          <Link
+            to="/bulk-search"
+            search={{ page: 1, limit: 50 }}
+            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors"
+            activeProps={{ className: "bg-blue-50 text-blue-600" }}
+          >
+            <FileSpreadsheet size={18} />
+            대량 서치
+          </Link>
+          <Link
+            to="/history"
             className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors"
             activeProps={{ className: "bg-blue-50 text-blue-600" }}
           >
             <History size={18} />
             랭킹 히스토리
           </Link>
-          <Link 
-            to="/queue" 
+          <Link
+            to="/queue"
             className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors"
             activeProps={{ className: "bg-blue-50 text-blue-600" }}
           >
             <List size={18} />
             작업 대기열
           </Link>
-          
+
           <div className="pt-4 mt-2 border-t border-gray-100">
-            <Link 
-              to="/system" 
+            <Link
+              to="/system"
               className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-rose-600 transition-colors"
               activeProps={{ className: "bg-rose-50 text-rose-600" }}
             >

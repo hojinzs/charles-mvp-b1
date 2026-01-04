@@ -4,6 +4,8 @@ import { MonitoringPage } from './routes/index';
 import { HistoryPage } from './routes/history';
 import { QueuePage } from './routes/queue';
 import { SystemPage } from './routes/system';
+import { BulkSearchPage } from './routes/bulk-search';
+import { BulkSearchDetailPage } from './routes/bulk-search-detail';
 
 // 1. Create Route Tree
 const rootRoute = createRootRoute({
@@ -37,13 +39,44 @@ const queueRoute = createRoute({
   component: QueuePage,
 });
 
+const bulkSearchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/bulk-search',
+  component: BulkSearchPage,
+  validateSearch: (search: Record<string, unknown>): { page: number; limit: number } => {
+    return {
+      page: Number(search.page) || 1,
+      limit: Math.min(Number(search.limit) || 50, 50),
+    };
+  },
+});
+
+const bulkSearchDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/bulk-search/$id',
+  component: BulkSearchDetailPage,
+  validateSearch: (search: Record<string, unknown>): { page: number; limit: number } => {
+    return {
+      page: Number(search.page) || 1,
+      limit: Math.min(Number(search.limit) || 100, 100),
+    };
+  },
+});
+
 const systemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/system',
   component: SystemPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, historyRoute, queueRoute, systemRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  historyRoute,
+  queueRoute,
+  bulkSearchRoute,
+  bulkSearchDetailRoute,
+  systemRoute,
+]);
 
 // 2. Create Router
 export const router = createRouter({ routeTree });
