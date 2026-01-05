@@ -42,24 +42,31 @@ export function BulkSearchPage() {
   const totalPages = Math.ceil(total / search.limit);
 
   const handleDownloadTemplate = async () => {
+    let url: string | null = null;
+    let a: HTMLAnchorElement | null = null;
     try {
       const response = await fetch(`${backendUrl}/api/bulk-searches/template`);
       if (!response.ok) throw new Error('Failed to download template');
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      url = window.URL.createObjectURL(blob);
+      a = document.createElement('a');
       a.href = url;
       a.download = 'bulk-search-template.xlsx';
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
       toast.success('템플릿이 다운로드되었습니다');
     } catch (error) {
       console.error('Template download error:', error);
       toast.error('템플릿 다운로드에 실패했습니다');
+    } finally {
+      if (url) {
+        window.URL.revokeObjectURL(url);
+      }
+      if (a && a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
     }
   };
 
