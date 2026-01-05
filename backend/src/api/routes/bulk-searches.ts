@@ -199,36 +199,81 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     const allKeywords = await getAllBulkSearchKeywords(bulkSearch.id);
     const pendingKeywords = allKeywords.filter((kw) => kw.status === "pending");
 
+    // Get existing jobs in queue to check for duplicates
+    const waitingJobs = await crawlQueue.getJobs(['waiting', 'delayed']);
+    console.log(`[BulkSearch] Found ${waitingJobs.length} existing jobs in queue`);
+
     let queuedCount = 0;
+    let reQueuedCount = 0;
+    let skippedCount = 0;
+
     for (const kw of pendingKeywords) {
       try {
         // Check if keyword exists in main keywords table
         let keywordRecord = await findKeywordByKeywordAndUrl(kw.keyword, kw.url);
 
-        // If not exists, we need to create it (or we can skip this and handle in worker)
-        // For now, we'll add to queue with the bulk_search_keyword_id
-        // The worker will need to be modified to handle bulk search keywords
+        // Find existing job for this keyword+URL combination
+        const existingJob = waitingJobs.find((job) => {
+          const jobData = job.data;
+          return (
+            jobData.keyword === kw.keyword &&
+            jobData.targetUrl === kw.url
+          );
+        });
 
-        await crawlQueue.add(
-          {
-            bulkSearchKeywordId: kw.id, // Special flag for bulk search
-            keywordId: keywordRecord?.id || null,
-            keyword: kw.keyword,
-            targetUrl: kw.url,
-            targetRank: null,
-          },
-          {
-            priority: 50, // Higher priority than scheduler (100), lower than manual (1)
+        if (existingJob) {
+          const currentPriority = existingJob.opts.priority || 100;
+
+          if (currentPriority !== 50) {
+            // Remove existing job and re-add with priority 50
+            console.log(
+              `[BulkSearch] Re-queuing ${kw.keyword} (${kw.url}) - changing priority from ${currentPriority} to 50`
+            );
+            await existingJob.remove();
+
+            await crawlQueue.add(
+              {
+                bulkSearchKeywordId: kw.id,
+                keywordId: keywordRecord?.id || null,
+                keyword: kw.keyword,
+                targetUrl: kw.url,
+                targetRank: null,
+              },
+              {
+                priority: 50,
+              }
+            );
+            reQueuedCount++;
+          } else {
+            // Already has priority 50, skip
+            console.log(
+              `[BulkSearch] Skipping ${kw.keyword} (${kw.url}) - already queued with priority 50`
+            );
+            skippedCount++;
           }
-        );
-        queuedCount++;
+        } else {
+          // No existing job, add new one
+          await crawlQueue.add(
+            {
+              bulkSearchKeywordId: kw.id,
+              keywordId: keywordRecord?.id || null,
+              keyword: kw.keyword,
+              targetUrl: kw.url,
+              targetRank: null,
+            },
+            {
+              priority: 50,
+            }
+          );
+          queuedCount++;
+        }
       } catch (e) {
         console.error(`[BulkSearch] Failed to add keyword to queue:`, e);
       }
     }
 
     console.log(
-      `[BulkSearch] Successfully queued ${queuedCount}/${totalPending} keywords`
+      `[BulkSearch] Queue results - New: ${queuedCount}, Re-queued: ${reQueuedCount}, Skipped: ${skippedCount}, Total: ${totalPending}`
     );
 
     res.json({
