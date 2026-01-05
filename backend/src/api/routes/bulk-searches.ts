@@ -132,54 +132,66 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     let totalCached = 0;
     let totalPending = 0;
 
-    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
-      const batch = keywords.slice(i, i + BATCH_SIZE);
-      const batchData = [];
+    try {
+      for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+        const batch = keywords.slice(i, i + BATCH_SIZE);
+        const batchData = [];
 
-      for (const kw of batch) {
-        // Check if keyword exists and has recent data
-        const existingKeyword = await findKeywordByKeywordAndUrl(
-          kw.keyword,
-          kw.url
-        );
+        for (const kw of batch) {
+          // Check if keyword exists and has recent data
+          const existingKeyword = await findKeywordByKeywordAndUrl(
+            kw.keyword,
+            kw.url
+          );
 
-        if (
-          existingKeyword &&
-          existingKeyword.last_checked_at &&
-          new Date(existingKeyword.last_checked_at) > threshold
-        ) {
-          // Use cached result
-          batchData.push({
-            keyword: kw.keyword,
-            url: kw.url,
-            status: "cached",
-            rank: existingKeyword.last_rank,
-            cachedFrom: existingKeyword.last_checked_at,
-          });
-          totalCached++;
-        } else {
-          // Mark as pending and will add to queue
-          batchData.push({
-            keyword: kw.keyword,
-            url: kw.url,
-            status: "pending",
-            rank: null,
-            cachedFrom: null,
-          });
-          totalPending++;
+          if (
+            existingKeyword &&
+            existingKeyword.last_checked_at &&
+            new Date(existingKeyword.last_checked_at) > threshold
+          ) {
+            // Use cached result
+            batchData.push({
+              keyword: kw.keyword,
+              url: kw.url,
+              status: "cached",
+              rank: existingKeyword.last_rank,
+              cachedFrom: existingKeyword.last_checked_at,
+            });
+            totalCached++;
+          } else {
+            // Mark as pending and will add to queue
+            batchData.push({
+              keyword: kw.keyword,
+              url: kw.url,
+              status: "pending",
+              rank: null,
+              cachedFrom: null,
+            });
+            totalPending++;
+          }
         }
+
+        // Batch insert
+        await insertBulkSearchKeywordsBatch(bulkSearch.id, batchData);
+        console.log(
+          `[BulkSearch] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(keywords.length / BATCH_SIZE)}`
+        );
       }
 
-      // Batch insert
-      await insertBulkSearchKeywordsBatch(bulkSearch.id, batchData);
-      console.log(
-        `[BulkSearch] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(keywords.length / BATCH_SIZE)}`
-      );
+      // Update counts
+      await updateBulkSearchCounts(bulkSearch.id, totalCached, totalPending);
+    } catch (e) {
+      // Ensure we do not leave a partially populated bulk search in case of failure
+      try {
+        await deleteBulkSearch(bulkSearch.id);
+      } catch (cleanupError) {
+        console.error(
+          `[BulkSearch] Failed to cleanup bulk search ${bulkSearch.id} after error:`,
+          cleanupError
+        );
+      }
+      throw e;
     }
-
-    // Update counts
-    await updateBulkSearchCounts(bulkSearch.id, totalCached, totalPending);
-
     // Add pending keywords to queue (with priority)
     console.log(`[BulkSearch] Adding ${totalPending} keywords to queue...`);
 
