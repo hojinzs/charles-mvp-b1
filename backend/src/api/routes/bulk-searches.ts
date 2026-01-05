@@ -19,7 +19,13 @@ import {
 import { crawlQueue } from "../../queue/crawlQueue";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_SIZE_BYTES,
+  },
+});
 
 // Environment variables
 const MONITORING_INTERVAL_MS = parseInt(
