@@ -65,24 +65,31 @@ export function BulkSearchDetailPage() {
   const totalPages = Math.ceil(total / search.limit);
 
   const handleExport = async () => {
+    const a = document.createElement('a');
+    let url: string | null = null;
+
     try {
       const response = await fetch(`${backendUrl}/api/bulk-searches/${id}/export`);
       if (!response.ok) throw new Error('Failed to export');
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      url = window.URL.createObjectURL(blob);
       a.href = url;
       a.download = `bulk-search-${id}-results.xlsx`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
       toast.success('결과가 다운로드되었습니다');
     } catch (error) {
       console.error('Export error:', error);
       toast.error('다운로드에 실패했습니다');
+    } finally {
+      if (url) {
+        window.URL.revokeObjectURL(url);
+      }
+      if (a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
     }
   };
 
