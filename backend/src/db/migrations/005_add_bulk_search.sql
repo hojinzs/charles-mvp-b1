@@ -30,3 +30,4 @@ CREATE TABLE IF NOT EXISTS bulk_search_keywords (
 CREATE INDEX IF NOT EXISTS idx_bulk_search_keywords_bulk_search ON bulk_search_keywords(bulk_search_id);
 CREATE INDEX IF NOT EXISTS idx_bulk_search_keywords_status ON bulk_search_keywords(status);
 CREATE INDEX IF NOT EXISTS idx_bulk_search_keywords_keyword_url ON bulk_search_keywords(keyword, url);
+CREATE INDEX IF NOT EXISTS idx_bulk_search_keywords_completed_at ON bulk_search_keywords(completed_at);
