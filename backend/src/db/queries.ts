@@ -306,7 +306,10 @@ export async function getBulkSearchesPaginated({
   const offset = (page - 1) * limit;
 
   const query = `
-    SELECT *, count(*) OVER() as total_count
+    SELECT
+      id, name, filename, total_count, completed_count, pending_count,
+      status, created_at, completed_at,
+      count(*) OVER() as row_count
     FROM bulk_searches
     ORDER BY created_at DESC
     LIMIT $1 OFFSET $2
@@ -315,7 +318,7 @@ export async function getBulkSearchesPaginated({
   const result = await pool.query(query, [limit, offset]);
   return {
     data: result.rows,
-    total: result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0,
+    total: result.rows.length > 0 ? parseInt(result.rows[0].row_count) : 0,
   };
 }
 
