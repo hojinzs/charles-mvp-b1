@@ -230,7 +230,7 @@ export async function resetSystemData() {
   try {
     await client.query("BEGIN");
 
-    // keyword_rankings는 keywords에 CASCADE 설정이 되어 있을 수 있지만, 
+    // keyword_rankings는 keywords에 CASCADE 설정이 되어 있을 수 있지만,
     // 명시적으로 지워주는 것이 안전함.
     await client.query("TRUNCATE TABLE keyword_rankings");
     await client.query("TRUNCATE TABLE keywords CASCADE");
@@ -242,4 +242,200 @@ export async function resetSystemData() {
   } finally {
     client.release();
   }
+}
+
+// ==================== Bulk Search Functions ====================
+
+export interface BulkSearchKeywordInput {
+  keyword: string;
+  url: string;
+}
+
+export async function createBulkSearch(
+  filename: string,
+  name: string | null,
+  totalCount: number
+) {
+  const result = await pool.query(
+    `INSERT INTO bulk_searches (filename, name, total_count, pending_count)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [filename, name, totalCount, totalCount]
+  );
+  return result.rows[0];
+}
+
+export async function updateBulkSearchCounts(
+  bulkSearchId: number,
+  completedCount: number,
+  pendingCount: number
+) {
+  const result = await pool.query(
+    `UPDATE bulk_searches
+     SET completed_count = $2, pending_count = $3,
+         status = CASE
+           WHEN $2 >= total_count THEN 'completed'
+           ELSE 'processing'
+         END,
+         completed_at = CASE
+           WHEN $2 >= total_count THEN NOW()
+           ELSE completed_at
+         END
+     WHERE id = $1 RETURNING *`,
+    [bulkSearchId, completedCount, pendingCount]
+  );
+  return result.rows[0];
+}
+
+export async function getBulkSearchById(id: number) {
+  const result = await pool.query(
+    "SELECT * FROM bulk_searches WHERE id = $1",
+    [id]
+  );
+  return result.rows[0];
+}
+
+export interface GetBulkSearchesOptions {
+  page: number;
+  limit: number;
+}
+
+export async function getBulkSearchesPaginated({
+  page,
+  limit,
+}: GetBulkSearchesOptions) {
+  const offset = (page - 1) * limit;
+
+  const query = `
+    SELECT
+      id, name, filename, total_count, completed_count, pending_count,
+      status, created_at, completed_at,
+      count(*) OVER() as row_count
+    FROM bulk_searches
+    ORDER BY created_at DESC
+    LIMIT $1 OFFSET $2
+  `;
+
+  const result = await pool.query(query, [limit, offset]);
+  return {
+    data: result.rows,
+    total: result.rows.length > 0 ? parseInt(result.rows[0].row_count) : 0,
+  };
+}
+
+export async function insertBulkSearchKeywordsBatch(
+  bulkSearchId: number,
+  keywords: Array<{
+    keyword: string;
+    url: string;
+    status: string;
+    rank?: number | null;
+    cachedFrom?: Date | null;
+  }>
+) {
+  if (keywords.length === 0) return [];
+
+  const values: any[] = [];
+  const placeholders: string[] = [];
+  let paramIndex = 1;
+
+  for (let i = 0; i < keywords.length; i++) {
+    const kw = keywords[i];
+    placeholders.push(
+      `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5})`
+    );
+    values.push(
+      bulkSearchId,
+      kw.keyword,
+      kw.url,
+      kw.status,
+      kw.rank || null,
+      kw.cachedFrom || null
+    );
+    paramIndex += 6;
+  }
+
+  const query = `
+    INSERT INTO bulk_search_keywords
+    (bulk_search_id, keyword, url, status, rank, cached_from)
+    VALUES ${placeholders.join(", ")}
+    RETURNING *
+  `;
+
+  const result = await pool.query(query, values);
+  return result.rows;
+}
+
+export interface GetBulkSearchKeywordsOptions {
+  bulkSearchId: number;
+  page: number;
+  limit: number;
+  status?: string;
+}
+
+export async function getBulkSearchKeywordsPaginated({
+  bulkSearchId,
+  page,
+  limit,
+  status,
+}: GetBulkSearchKeywordsOptions) {
+  const offset = (page - 1) * limit;
+  const conditions: string[] = ["bulk_search_id = $1"];
+  const params: any[] = [bulkSearchId];
+  let paramIndex = 2;
+
+  if (status) {
+    conditions.push(`status = $${paramIndex}`);
+    params.push(status);
+    paramIndex++;
+  }
+
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+  const query = `
+    SELECT *, count(*) OVER() as total_count
+    FROM bulk_search_keywords
+    ${whereClause}
+    ORDER BY id ASC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
+
+  params.push(limit, offset);
+
+  const result = await pool.query(query, params);
+  return {
+    data: result.rows,
+    total: result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0,
+  };
+}
+
+export async function updateBulkSearchKeywordStatus(
+  id: number,
+  status: string,
+  rank?: number | null
+) {
+  const result = await pool.query(
+    `UPDATE bulk_search_keywords
+     SET status = $2, rank = $3, completed_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [id, status, rank || null]
+  );
+  return result.rows[0];
+}
+
+export async function deleteBulkSearch(id: number) {
+  const result = await pool.query(
+    "DELETE FROM bulk_searches WHERE id = $1 RETURNING id",
+    [id]
+  );
+  return result.rows[0];
+}
+
+export async function getAllBulkSearchKeywords(bulkSearchId: number) {
+  const result = await pool.query(
+    `SELECT * FROM bulk_search_keywords
+     WHERE bulk_search_id = $1
+     ORDER BY id ASC`,
+    [bulkSearchId]
+  );
+  return result.rows;
 }
