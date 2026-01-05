@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Link, useRouter } from '@tanstack/react-router';
 import { useHealthCheck } from '../hooks/useHealthCheck';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Wifi, WifiOff, LogOut, Globe, LayoutDashboard, History, List, Settings, FileSpreadsheet } from 'lucide-react';
+import { LogOut, Globe, LayoutDashboard, History, List, Settings, FileSpreadsheet } from 'lucide-react';
 
 export function RootLayout() {
   const router = useRouter();
