@@ -91,8 +91,48 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
       });
     }
 
-  } catch (e: any) {
-    errors.push(`엑셀 파일 파싱 오류: ${e.message}`);
+  } catch (e: unknown) {
+    // 구체적인 예외 유형에 따라 보다 자세한 에러 메시지를 제공합니다.
+    const err = (e && typeof e === "object" ? (e as { name?: string; message?: string; code?: string }) : undefined);
+    const message = err?.message || "알 수 없는 오류가 발생했습니다.";
+    const lowerMessage = message.toLowerCase();
+
+    // 1) 지원하지 않는 포맷 / 잘못된 파일 형식 (예: XLSX가 아닌 파일)
+    if (
+      lowerMessage.includes("unsupported file") ||
+      lowerMessage.includes("unsupported format") ||
+      lowerMessage.includes("unrecognized format") ||
+      lowerMessage.includes("file type") ||
+      lowerMessage.includes("password") ||
+      lowerMessage.includes("encrypted")
+    ) {
+      errors.push("지원하지 않는 엑셀 형식이거나 잘못된 파일입니다. XLSX 형식의 정상적인 엑셀 파일을 업로드해 주세요.");
+
+    // 2) 손상되었거나 일부만 업로드된 파일
+    } else if (
+      lowerMessage.includes("corrupt") ||
+      lowerMessage.includes("corrupted") ||
+      lowerMessage.includes("invalid") ||
+      lowerMessage.includes("truncated") ||
+      lowerMessage.includes("end-of-central-directory") ||
+      lowerMessage.includes("zip") // XLSX는 ZIP 구조를 사용하므로 ZIP 관련 오류는 손상 가능성이 큽니다.
+    ) {
+      errors.push("엑셀 파일이 손상되었거나 올바르게 업로드되지 않았습니다. 파일을 다시 저장한 뒤 다시 시도해 주세요.");
+
+    // 3) 메모리/용량 관련 문제 (너무 큰 파일 등)
+    } else if (
+      e instanceof RangeError ||
+      lowerMessage.includes("out of memory") ||
+      lowerMessage.includes("allocation failed") ||
+      lowerMessage.includes("exceeds the maximum")
+    ) {
+      errors.push("엑셀 파일이 너무 크거나 서버 메모리 한계를 초과했습니다. 파일을 나누어 업로드해 주세요.");
+
+    // 4) 그 외 예기치 못한 오류
+    } else {
+      // 기본적으로 내부 오류 메시지도 포함하여 디버깅에 도움을 줍니다.
+      errors.push(`엑셀 파일 파싱 중 알 수 없는 오류가 발생했습니다: ${message}`);
+    }
   }
 
   return { keywords, errors };
